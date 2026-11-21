@@ -1,0 +1,27 @@
+
+# Node.js dependencies
+node_modules/
+
+# Runtime data and generated files
+user/
+config/server.json
+config/rooms.json
+config/runtime.json
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor settings
+.vscode/
+.idea/
