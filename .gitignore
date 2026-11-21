@@ -25,3 +25,6 @@ desktop.ini
 # Editor settings
 .vscode/
 .idea/
+
+tree.txt
+server_old.js
