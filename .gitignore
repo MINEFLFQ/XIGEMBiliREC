@@ -29,4 +29,7 @@ desktop.ini
 tree.txt
 server_old.js
 
-oldversion/
+oldversion/"*.zip" 
+"*.tar.gz" 
+"*.7z" 
+"*.rar" 
