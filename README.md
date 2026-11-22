@@ -1,5 +1,9 @@
 # XIGEMBiliREC
 
+<p align="center">
+  <img src="public/logo.png" alt="XIGEMBiliREC Logo" width="200">
+</p>
+
 ## Beta_0.2.1
 
 基于 Node.js、Express 和 FFmpeg 的 Bilibili 直播录制与视频切片服务。
