@@ -1,5 +1,7 @@
 # XIGEMBiliREC
 
+## Beta_0.1.2
+
 基于 Node.js、Express 和 FFmpeg 的 Bilibili 直播录制与视频切片服务。
 
 XIGEMBiliREC 可以监控指定的 Bilibili 直播间，在主播开播时自动录制直播流，并在录制结束后生成 HLS 预览视频。用户可以通过 Web 页面选择录制文件、提交视频切片任务、查看切片结果并下载视频。
@@ -43,47 +45,47 @@ XIGEMBiliREC 是一个面向 Bilibili 直播间的自动录制与视频切片服
 基本工作流程：
 
 ```text
-                 Bilibili 直播间
-                        |
-                        v
-                 定时检查直播状态
-                        |
-               +--------+--------+
-               |                 |
-             未开播             已开播
-               |                 |
-               v                 v
-             继续轮询         获取直播流地址
-                                 |
-                                 v
-                             FFmpeg 录制
-                                 |
-                                 v
-                             保存原始视频
-                                 |
-                                 v
-                             录制结束
-                                 |
-                                 v
-                             转码任务队列
-                                 |
-                                 v
-                             FFmpeg HLS 转码
-                                 |
-                                 v
-                          生成 m3u8 / ts 文件
-                                 |
-                                 v
-                             Web 视频预览
-                                 |
-                                 v
-                             用户提交切片
-                                 |
-                                 v
-                             FFmpeg 切片
-                                 |
-                                 v
-                             用户下载 MP4
+                  Bilibili 直播间
+                         |
+                         v
+                  定时检查直播状态
+                         |
+                +--------+--------+
+                |                 |
+              未开播             已开播
+                |                 |
+                v                 v
+              继续轮询         获取直播流地址
+                                  |
+                                  v
+                              FFmpeg 录制
+                                  |
+                                  v
+                              保存原始视频
+                                  |
+                                  v
+                              录制结束
+                                  |
+                                  v
+                              转码任务队列
+                                  |
+                                  v
+                              FFmpeg HLS 转码
+                                  |
+                                  v
+                           生成 m3u8 / ts 文件
+                                  |
+                                  v
+                              Web 视频预览
+                                  |
+                                  v
+                              用户提交切片
+                                  |
+                                  v
+                              FFmpeg 切片
+                                  |
+                                  v
+                              用户下载 MP4
 ```
 
 ---
@@ -167,43 +169,11 @@ XIGEMBiliREC 是一个面向 Bilibili 直播间的自动录制与视频切片服
 
 ### Node.js 依赖
 
-项目使用 Node.js 模块管理依赖。
-
-当前主要依赖：
-
-- `express`
-- `axios`
-
-**注意：GitHub 仓库不会上传 `node_modules` 目录。其他开发者克隆项目后，需要自行安装项目依赖。**
-
-如果项目根目录已经包含 `package.json` 和 `package-lock.json`，推荐执行：
-
-```bash
-npm install
-```
-
-npm 会根据 `package.json` 安装依赖，并在本地生成 `node_modules` 目录。
-
-如果没有 `package.json`，可以手动安装当前使用的依赖：
+项目当前使用：
 
 ```bash
 npm install express axios
 ```
-
-安装完成后，项目目录中会生成：
-
-```text
-node_modules/
-package-lock.json
-```
-
-其中：
-
-- `node_modules/`：存放项目运行所需的 Node.js 依赖。
-- `package.json`：记录项目依赖和相关配置。
-- `package-lock.json`：锁定依赖版本，便于不同开发者安装一致的依赖。
-
-`node_modules` 不需要上传到 GitHub，其他开发者可以通过 npm 自行构建。
 
 ### FFmpeg
 
@@ -237,12 +207,7 @@ ffmpeg -version
 }
 ```
 
-注意：
-
-- FFmpeg 需要由使用者自行安装或准备。
-- 本项目不会自动下载或安装 FFmpeg。
-- FFmpeg 不属于 npm 依赖，执行 `npm install` 不会安装 FFmpeg。
-- 修改 FFmpeg 路径后，需要重新启动服务。
+注意：修改 FFmpeg 路径后，需要重新启动服务。
 
 ---
 
@@ -302,15 +267,8 @@ XIGEMBiliREC/
 | `user/log/` | 服务日志 |
 | `user/sessions.json` | 登录会话 |
 | `user/stats.json` | 用户切片统计 |
-| `node_modules/` | npm 安装生成的依赖目录 |
 
 首次启动时，程序会自动创建必要的目录和 JSON 配置文件。
-
-**注意：**
-
-`node_modules/` 是本地依赖目录，不包含在 GitHub 仓库中。开发者首次获取项目后，需要执行 `npm install` 自行安装。
-
-`config/` 和 `user/` 中的实际运行数据可能不会包含在公开仓库中。首次启动时，程序会根据当前代码初始化缺失的配置文件。
 
 ---
 
@@ -318,10 +276,10 @@ XIGEMBiliREC/
 
 ### 5.1 获取项目
 
-使用 Git 克隆项目：
+下载或克隆项目到本地：
 
 ```bash
-git clone https://github.com/MINEFLFQ/XIGEMBiliREC.git
+git clone <项目仓库地址>
 ```
 
 进入项目目录：
@@ -330,61 +288,19 @@ git clone https://github.com/MINEFLFQ/XIGEMBiliREC.git
 cd XIGEMBiliREC
 ```
 
-也可以在 GitHub 仓库页面下载 ZIP 压缩包，解压后进入项目目录。
-
-### 5.2 安装 Node.js 依赖
-
-**首次运行必须执行此步骤。**
-
-如果项目包含 `package.json`，执行：
-
-```bash
-npm install
-```
-
-该命令会根据项目依赖配置安装所需模块，并在本地生成 `node_modules` 目录。
-
-如果项目没有提供 `package.json`，可以手动安装当前使用的依赖：
+### 5.2 安装依赖
 
 ```bash
 npm install express axios
 ```
 
-如果启动时出现：
-
-```text
-Error: Cannot find module 'express'
-```
-
-说明项目依赖没有正确安装。
-
-重新执行：
-
-```bash
-npm install
-```
-
-即可尝试解决。
-
-### 5.3 安装或配置 FFmpeg
-
-执行：
+### 5.3 检查 FFmpeg
 
 ```bash
 ffmpeg -version
 ```
 
 如果命令无法识别，请安装 FFmpeg，或者在 `config/server.json` 中配置 FFmpeg 的完整路径。
-
-例如：
-
-```json
-{
-  "ffmpeg": {
-    "path": "C:/ffmpeg/bin/ffmpeg.exe"
-  }
-}
-```
 
 ### 5.4 启动服务
 
@@ -912,7 +828,7 @@ config/runtime.json
 首次启动时，如果不存在 `runtime.json`，程序会生成默认管理员密码：
 
 ```text
-BiliLiveREC
+XIGEMBiliREC
 ```
 
 请在首次部署后及时修改。
@@ -1366,12 +1282,6 @@ node server.js
 解决：
 
 ```bash
-npm install
-```
-
-如果没有 `package.json`，可以执行：
-
-```bash
 npm install express axios
 ```
 
@@ -1456,26 +1366,6 @@ index.m3u8
 检查 FFmpeg 进程是否仍在运行，以及终端中是否出现子进程退出超时日志。
 
 Windows 环境下，必要时需要检查是否存在未随 Node.js 子进程退出的外部进程。
-
-### 18.9 克隆项目后没有 node_modules
-
-原因：`node_modules` 不会上传到 GitHub。
-
-解决：
-
-进入项目根目录，执行：
-
-```bash
-npm install
-```
-
-等待安装完成后，重新启动：
-
-```bash
-node server.js
-```
-
-如果依赖安装失败，请检查 Node.js 和 npm 是否正常安装，以及网络连接是否正常。
 
 ---
 
@@ -1564,29 +1454,6 @@ node server.js
 - 管理员可以正常管理用户和删除原片。
 - 自动清理不会误删正在使用的文件。
 - `exit` 和 `Ctrl + C` 可以正常关闭服务。
-
-### 19.4 GitHub 项目说明
-
-项目源码托管于 GitHub：
-
-https://github.com/MINEFLFQ/XIGEMBiliREC
-
-其他开发者可以通过以下命令获取项目：
-
-```bash
-git clone https://github.com/MINEFLFQ/XIGEMBiliREC.git
-cd XIGEMBiliREC
-```
-
-首次运行前，需要自行完成以下准备：
-
-1. 安装 Node.js 和 npm。
-2. 执行 `npm install`，安装项目依赖并生成本地 `node_modules`。
-3. 自行安装 FFmpeg，或者配置 FFmpeg 可执行文件路径。
-4. 根据实际运行环境检查服务配置。
-5. 执行 `node server.js` 启动服务。
-
-**不要直接将个人运行环境中的 `node_modules`、录制文件、登录会话、用户数据或包含真实密码的配置文件提交到公开仓库。**
 
 ---
 

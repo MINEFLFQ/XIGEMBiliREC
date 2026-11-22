@@ -33,40 +33,89 @@ const KNOWN_RECORD_EXTS = ['mkv', 'mp4', 'flv', 'ts'];
 // ---------- 工具 ----------
 const pad2 = n => String(n).padStart(2, '0');
 const stampDate = d => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+
+// 最大允许切片时间：7 天
+const MAX_CLIP_SECONDS = 7 * 24 * 60 * 60;
+
 const toHMS = sec => `${pad2(Math.floor(sec / 3600))}${pad2(Math.floor((sec % 3600) / 60))}${pad2(Math.floor(sec % 60))}`;
 
-function parseHMS(s) {
-  s = String(s || '').trim();
+function parseHMS(value) {
+  const s = String(value ?? '').trim();
 
-  let m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
-  if (m) return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+  let seconds = null;
+  let m = null;
 
-  m = s.match(/^(\d{1,2}):(\d{2})$/);
-  if (m) return Number(m[1]) * 60 + Number(m[2]);
+  // HH:MM:SS，小时支持 1～3 位
+  m = s.match(/^(\d{1,3}):(\d{2}):(\d{2})$/);
 
-  m = s.match(/^(\d+)$/);
   if (m) {
-    const raw = m[1];
+    const hh = Number(m[1]);
+    const mm = Number(m[2]);
+    const ss = Number(m[3]);
 
-    if (raw.length <= 2) return Number(raw);
-
-    if (raw.length <= 6) {
-      const hh = Number(raw.slice(0, -4) || 0);
-      const mm = Number(raw.slice(-4, -2));
-      const ss = Number(raw.slice(-2));
-
-      if (mm < 60 && ss < 60) return hh * 3600 + mm * 60 + ss;
+    if (mm >= 60 || ss >= 60) {
       return null;
     }
 
+    seconds = hh * 3600 + mm * 60 + ss;
+
+  } else {
+    // MM:SS
+    m = s.match(/^(\d{1,2}):(\d{2})$/);
+
+    if (m) {
+      const mm = Number(m[1]);
+      const ss = Number(m[2]);
+
+      if (mm >= 60 || ss >= 60) {
+        return null;
+      }
+
+      seconds = mm * 60 + ss;
+
+    } else if (/^\d+$/.test(s)) {
+      const raw = s;
+
+      // 纯秒数
+      if (raw.length <= 2) {
+        seconds = Number(raw);
+
+      // MMSS 或 HHMMSS
+      } else if (raw.length >= 3 && raw.length <= 7) {
+        let hh = 0;
+        let mm = 0;
+        let ss = 0;
+
+        if (raw.length <= 4) {
+          mm = Number(raw.slice(0, -2));
+          ss = Number(raw.slice(-2));
+        } else {
+          hh = Number(raw.slice(0, -4));
+          mm = Number(raw.slice(-4, -2));
+          ss = Number(raw.slice(-2));
+        }
+
+        if (mm >= 60 || ss >= 60) {
+          return null;
+        }
+
+        seconds = hh * 3600 + mm * 60 + ss;
+      }
+    }
+  }
+
+  if (
+    !Number.isSafeInteger(seconds) ||
+    seconds < 0
+  ) {
     return null;
   }
 
-  return null;
+  return seconds;
 }
 
 const safeName = s => typeof s === 'string' && /^[a-zA-Z0-9_-]+$/.test(s);
-const isClipFileName = f => /^\d{8}_\d+_\d{6}_\d{6}\.mp4$/.test(f);
+const isClipFileName = f => /^\d{8}_\d+_\d{6,7}_\d{6,7}\.mp4$/.test(f);
 const ensureDir = d => {
   if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
 };
@@ -268,7 +317,16 @@ const DEFAULT_SERVER_CONFIG = {
     cleanupIntervalMinutes: 5,
     dailyLimit: 10,
     maxConcurrent: 1,
-    maxConcurrentDownloads: 3
+    maxConcurrentDownloads: 3,
+
+    // 最多等待执行的切片任务数量
+    maxQueue: 100,
+
+    // 最多保留的切片任务记录数量
+    maxTaskHistory: 500,
+
+    // 已完成或失败的任务记录保留时间
+    taskRetentionHours: 24
   },
 
   storage: {
@@ -1318,6 +1376,54 @@ async function runTranscodeQueue() {
   }
 }
 
+// 检查 HLS 转码产物是否完整
+async function validateHlsOutput(prevDir, m3u8) {
+  const content = await fsp.readFile(m3u8, 'utf8');
+
+  if (!content.includes('#EXTM3U')) {
+    throw new Error('HLS 播放列表不存在或格式错误');
+  }
+
+  // 必须包含结束标记，确认播放列表已经写入完成
+  if (!content.includes('#EXT-X-ENDLIST')) {
+    throw new Error('HLS 播放列表尚未完成');
+  }
+
+  // 提取播放列表中引用的 TS 文件
+  const segments = content
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith('#'));
+
+  if (!segments.length) {
+    throw new Error('HLS 播放列表中没有 TS 分片');
+  }
+
+  for (const segment of segments) {
+    // 只允许当前预览目录内的 TS 文件
+    if (
+      path.basename(segment) !== segment ||
+      !/\.ts$/i.test(segment)
+    ) {
+      throw new Error(`HLS 分片路径非法：${segment}`);
+    }
+
+    const segmentFile = path.resolve(prevDir, segment);
+
+    if (!isPathInside(prevDir, segmentFile)) {
+      throw new Error(`HLS 分片路径越界：${segment}`);
+    }
+
+    const st = await fsp.stat(segmentFile).catch(() => null);
+
+    if (!st || !st.isFile() || st.size <= 0) {
+      throw new Error(`HLS TS 分片不存在或为空：${segment}`);
+    }
+  }
+
+  return segments.length;
+}
+
 async function doTranscode({ roomId, srcFile, serverCfg }) {
   const activeRec = recordingProcs.get(roomId);
 
@@ -1362,9 +1468,16 @@ async function doTranscode({ roomId, srcFile, serverCfg }) {
     path.basename(srcFile, ext)
   );
 
+  // 每次重新转码前清理旧文件，避免上次失败留下残缺文件
+  await fsp.rm(prevDir, {
+    recursive: true,
+    force: true
+  });
+
   ensureDir(prevDir);
 
   const m3u8 = path.join(prevDir, 'index.m3u8');
+  const endFile = path.join(prevDir, '.end');
 
   const args = [
     '-i',
@@ -1481,10 +1594,34 @@ async function doTranscode({ roomId, srcFile, serverCfg }) {
       });
     });
 
+    // FFmpeg 退出码为 0 后，继续检查 HLS 产物
+    const segmentCount = await validateHlsOutput(
+      prevDir,
+      m3u8
+    );
+
+    // 所有 TS 文件确认就绪后，才生成完成标记
+    await fsp.writeFile(endFile, '');
+
     log(
       'INFO',
-      `[${roomId}] 转码完成 ${path.basename(srcFile)}`
+      `[${roomId}] 转码完成 ${path.basename(srcFile)}，共 ${segmentCount} 个 TS 分片`
     );
+
+  } catch (e) {
+    // 转码失败时不允许留下完成标记
+    await fsp.rm(endFile, {
+      force: true
+    }).catch(() => {});
+
+    // 清理本次失败产生的残缺预览文件
+    await fsp.rm(prevDir, {
+      recursive: true,
+      force: true
+    }).catch(() => {});
+
+    throw e;
+
   } finally {
     // 清理进程记录和运行状态
     transcodeProcesses.delete(sourceKey);
@@ -1515,17 +1652,17 @@ async function recoverTranscodeQueue(serverCfg) {
     for (const f of files) {
       if (f.fileName === activeFile) continue;
 
-      const m3u8 = path.join(
+      const endFile = path.join(
         prevBase,
         roomId,
         f.fileId,
-        'index.m3u8'
+        '.end'
       );
 
       const srcFile = path.join(dir, f.fileName);
 
       if (
-        !fs.existsSync(m3u8) &&
+        !fs.existsSync(endFile) &&
         !isTranscodeActiveOrQueued(srcFile)
       ) {
         log('INFO', `[recover] 补录转码 ${roomId}/${f.fileName}`);
@@ -1640,6 +1777,74 @@ const clipProcesses = new Map();
 
 let clipRunning = 0;
 
+// 清理切片任务历史记录，限制任务记录数量
+function pruneClipTasks(serverCfg) {
+  const clipCfg = serverCfg.clip || {};
+
+  const configuredRetention = Number(
+    clipCfg.taskRetentionHours
+  );
+
+  const retentionMs =
+    Number.isFinite(configuredRetention) && configuredRetention > 0
+      ? configuredRetention * 3600 * 1000
+      : 24 * 3600 * 1000;
+
+  const configuredMax = Number(
+    clipCfg.maxTaskHistory
+  );
+
+  const maxTasks =
+    Number.isInteger(configuredMax) && configuredMax > 0
+      ? configuredMax
+      : 500;
+
+  const now = Date.now();
+
+  const finishedTasks = [];
+
+  // 只清理已经完成或失败的任务
+  for (const [taskId, task] of clipTasks) {
+    if (
+      task.status !== 'done' &&
+      task.status !== 'failed'
+    ) {
+      continue;
+    }
+
+    const finishedAt = task.finishedAt || task.createdAt || now;
+
+    // 超过保留时间，直接删除历史记录
+    if (now - finishedAt >= retentionMs) {
+      clipTasks.delete(taskId);
+      continue;
+    }
+
+    finishedTasks.push({
+      taskId,
+      finishedAt
+    });
+  }
+
+  // 最早完成的任务排在前面
+  finishedTasks.sort(
+    (a, b) => a.finishedAt - b.finishedAt
+  );
+
+  // 超过最大记录数量时，优先删除最早完成的历史任务
+  while (
+    clipTasks.size >= maxTasks &&
+    finishedTasks.length
+  ) {
+    const oldest = finishedTasks.shift();
+
+    clipTasks.delete(oldest.taskId);
+  }
+
+  // 返回是否还有空间保存新任务
+  return clipTasks.size < maxTasks;
+}
+
 async function submitClip(session, body, serverCfg) {
   if (session.username === '#admin#') {
     throw new Error('管理员账号不可切片');
@@ -1659,10 +1864,13 @@ async function submitClip(session, body, serverCfg) {
     throw new Error('时间格式错误');
   }
 
-  const MAX_SEC = 86400 * 7;
+  if (startSec > MAX_CLIP_SECONDS) {
+    throw new Error('起点超出范围');
+  }
 
-  if (startSec > MAX_SEC) throw new Error('起点超出范围');
-  if (endSec > MAX_SEC) throw new Error('终点超出范围');
+  if (endSec > MAX_CLIP_SECONDS) {
+    throw new Error('终点超出范围');
+  }
   if (endSec <= startSec) throw new Error('终点必须大于起点');
 
   const userId = session.username;
@@ -1721,6 +1929,25 @@ async function submitClip(session, body, serverCfg) {
   const outName =
     `${m[1]}_${m[2]}_${toHMS(startSec)}_${toHMS(endSec)}.mp4`;
 
+  // 清理过期任务，并检查任务记录是否还有空间
+  if (!pruneClipTasks(serverCfg)) {
+    throw new Error('切片任务记录已满，请稍后重试');
+  }
+
+  // 检查等待队列数量
+  const configuredMaxQueue = Number(
+    serverCfg.clip.maxQueue
+  );
+
+  const maxQueue =
+    Number.isInteger(configuredMaxQueue) && configuredMaxQueue > 0
+      ? configuredMaxQueue
+      : 100;
+
+  if (clipQueue.length >= maxQueue) {
+    throw new Error('切片任务队列已满，请稍后重试');
+  }
+
   const outFile = path.join(tempBase, outName);
   const taskId = crypto.randomBytes(8).toString('hex');
 
@@ -1733,7 +1960,9 @@ async function submitClip(session, body, serverCfg) {
     startSec,
     endSec,
     outName,
-    error: null
+    error: null,
+    createdAt: Date.now(),
+    finishedAt: null
   };
 
   clipTasks.set(taskId, task);
@@ -1771,10 +2000,14 @@ async function runClipQueue(serverCfg) {
 async function processClipTask(task, serverCfg) {
   try {
     await runFfmpegClip(task, serverCfg);
+
     task.status = 'done';
+    task.finishedAt = Date.now();
+
   } catch (e) {
     task.status = 'failed';
     task.error = e.message;
+    task.finishedAt = Date.now();
 
     try {
       if (fs.existsSync(task.outFile)) {
@@ -1789,6 +2022,7 @@ async function processClipTask(task, serverCfg) {
     );
 
     log('ERROR', `切片失败 ${task.taskId}: ${e.message}`);
+
   } finally {
     clipRunning--;
     runClipQueue(serverCfg);
@@ -1859,6 +2093,9 @@ const downloading = new Map();
 let lastRawCleanupAt = 0;
 
 async function cleanupTask(serverCfg) {
+  // 定期清理过期的切片任务记录
+  pruneClipTasks(serverCfg);
+
   const tempBase = path.resolve(
     ROOT,
     serverCfg.paths.tempvideo
@@ -2483,7 +2720,7 @@ function buildApp(serverCfg, roomsData) {
               serverCfg.paths.previews,
               roomId,
               f.fileId,
-              'index.m3u8'
+              '.end'
             )
           )
         ) {
@@ -2567,11 +2804,49 @@ function buildApp(serverCfg, roomsData) {
       return res.status(404).json({ ok: false });
     }
 
+    let downloadUrl = null;
+
+    if (task.status === 'done') {
+      const runtime = loadRuntime();
+      const expires =
+        Date.now() +
+        (serverCfg.clip.retentionHours || 6) * 3600 * 1000 +
+        3600 * 1000;
+
+      const token = signDownload(
+        task.userId,
+        task.outName,
+        expires,
+        runtime.downloadSecret
+      );
+
+      downloadUrl =
+        path.posix.join(
+          basePath,
+          'api/clips/download',
+          encodeURIComponent(task.userId),
+          encodeURIComponent(task.outName)
+        ) + `?token=${token}&expires=${expires}`;
+    }
+
     res.json({
       ok: true,
       status: task.status,
       error: task.error,
-      outName: task.status === 'done' ? task.outName : null
+      outName: task.status === 'done' ? task.outName : null,
+      downloadUrl
+    });
+  });
+
+    // ---------- 当前用户今日切片配额 ----------
+  router.get('/api/stats/today', (req, res) => {
+    const userId = req.session.username;
+    const today = stampDate(new Date());
+
+    res.json({
+      ok: true,
+      count: getStat(userId, today),
+      limit: serverCfg.clip.dailyLimit || 10
     });
   });
 
@@ -2801,67 +3076,6 @@ function buildApp(serverCfg, roomsData) {
         // 无论成功、失败还是提前返回，都释放删除锁
         deletingRecordingFiles.delete(sourceFile);
       }
-
-
-      // 1. 停止正在运行的转码，移除排队中的转码任务
-      try {
-        await cancelTranscodeForFile(sourceFile);
-      } catch (e) {
-        log(
-          'ERROR',
-          `[admin] 取消转码失败 ${sourceFile}: ${e.message}`
-        );
-
-        return res.status(500).json({
-          ok: false,
-          error: `停止转码失败，未删除原始录屏：${e.message}`
-        });
-      }
-
-      // 2. 先删除对应的全部 HLS 预览文件
-      try {
-        await removePreviewDirectory(roomId, fileId, serverCfg);
-
-        log(
-          'INFO',
-          `[admin] 已删除对应 HLS 预览目录 ${roomId}/${fileId}`
-        );
-      } catch (e) {
-        log(
-          'ERROR',
-          `[admin] 删除预览目录失败 ${roomId}/${fileId}: ${e.message}`
-        );
-
-        return res.status(500).json({
-          ok: false,
-          error: '删除 HLS 预览目录失败，原始录屏暂未删除'
-        });
-      }
-
-      // 3. HLS 清理成功后，再删除原始录制文件
-      try {
-        await fsp.unlink(sourceFile);
-      } catch (e) {
-        // 如果原片仍然存在，尝试重新生成预览
-        if (e.code !== 'ENOENT' && fs.existsSync(sourceFile)) {
-          triggerTranscode(roomId, sourceFile, serverCfg);
-        }
-
-        return res.status(e.code === 'ENOENT' ? 404 : 500).json({
-          ok: false,
-          error: e.code === 'ENOENT'
-            ? '原始录屏不存在'
-            : '删除原始录屏失败，已尝试恢复 HLS 预览'
-        });
-      }
-
-
-      log(
-        'INFO',
-        `管理员 ${req.session.username} 删除原始录屏 ${roomId}/${path.basename(sourceFile)}`
-      );
-
-      res.json({ ok: true });
     }
   );
 
@@ -3617,7 +3831,13 @@ function shutdown(signal) {
 
     // 4. 清空尚未执行的任务
     transcodeQueue.length = 0;
-    clipQueue.length = 0;
+
+    // 将尚未执行的切片任务标记为失败
+    for (const task of clipQueue.splice(0)) {
+      task.status = 'failed';
+      task.error = '服务正在关闭，任务未执行';
+      task.finishedAt = Date.now();
+    }
 
     // 5. 停止正在录制的进程
     const recordingList = [
@@ -3717,13 +3937,20 @@ function shutdown(signal) {
     // 9. 关闭 HTTP 服务
     if (httpServer) {
       await new Promise(resolve => {
-        const timer = setTimeout(resolve, 10000);
+        const timer = setTimeout(() => {
+          log('WARN', 'HTTP 服务 10 秒内未完全关闭，强制断开剩余连接');
+          try { httpServer.closeAllConnections(); } catch (e) {}
+          resolve();
+        }, 10000);
 
         httpServer.close(() => {
           clearTimeout(timer);
           log('INFO', 'HTTP 服务已关闭');
           resolve();
         });
+
+        // Node 18.2+ 支持主动断开空闲连接，加速关闭
+        try { httpServer.closeIdleConnections(); } catch (e) {}
       });
 
       httpServer = null;
@@ -3743,6 +3970,17 @@ function shutdown(signal) {
 // 监听退出信号
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+// 未捕获异常：记日志后优雅关闭，避免子进程变孤儿
+process.on('uncaughtException', e => {
+  log('ERROR', `未捕获异常：${e && e.stack || e}`);
+  shutdown('UNCAUGHT_EXCEPTION');
+});
+
+// 未处理的 Promise 拒绝：只记日志，不退出（避免非致命错误导致服务中断）
+process.on('unhandledRejection', e => {
+  log('ERROR', `未处理 Promise 拒绝：${e && e.stack || e}`);
+});
 
 // 仅直接运行文件时启动，作为模块引用时不自动启动
 if (require.main === module) {
