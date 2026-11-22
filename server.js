@@ -1,5 +1,5 @@
 // ============================================================
-// XIGEMBiliREC 切片层后端（单文件，v8）
+// XIGEMBiliREC Beta_0.2.1
 // 依赖：express, axios
 // 启动：node server.js
 // ============================================================
@@ -606,6 +606,95 @@ async function biliRoomInfo(roomId, headers) {
   );
 
   return res.data.data;
+}
+
+
+// 获取 B 站主播昵称
+async function biliAnchorNick(uid, headers) {
+  if (!uid) {
+    throw new Error('无法获取主播 UID');
+  }
+
+  const res = await axios.get(
+    `https://api.live.bilibili.com/live_user/v1/Master/info?uid=${uid}`,
+    { headers, timeout: 10000 }
+  );
+
+  const nick = res.data?.data?.info?.uname;
+
+  if (!nick) {
+    throw new Error(
+      res.data?.message || res.data?.msg || '无法获取主播昵称'
+    );
+  }
+
+  return String(nick).trim();
+}
+
+
+// ---------- 主播昵称定期更新 ----------
+
+let nickRefreshRunning = false;
+
+// 更新所有直播间的主播昵称
+async function refreshRoomNicknames(serverCfg, roomsData) {
+  if (nickRefreshRunning || isShuttingDown) return;
+
+  nickRefreshRunning = true;
+
+  let changed = false;
+
+  try {
+    for (let i = 0; i < roomsData.rooms.length; i++) {
+      if (isShuttingDown) break;
+
+      const room = roomsData.rooms[i];
+
+      try {
+        // 获取直播间 UID
+        const info = await biliRoomInfo(
+          room.roomId,
+          serverCfg.recorder.headers
+        );
+
+        // 获取主播昵称
+        const nick = await biliAnchorNick(
+          info.uid,
+          serverCfg.recorder.headers
+        );
+
+        if (nick && nick !== room.nick) {
+          log(
+            'INFO',
+            `[${room.roomId}] 主播昵称更新：${room.nick || '未设置'} -> ${nick}`
+          );
+
+          room.nick = nick;
+          changed = true;
+        }
+
+      } catch (e) {
+        log(
+          'WARN',
+          `[${room.roomId}] 更新主播昵称失败：${e.message}`
+        );
+      }
+
+      // 请求之间稍作间隔，避免连续请求过于密集
+      if (i < roomsData.rooms.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+
+    // 只有发生变化才写入 rooms.json
+    if (changed) {
+      saveRooms(roomsData);
+      log('INFO', '直播间主播昵称已更新并保存');
+    }
+
+  } finally {
+    nickRefreshRunning = false;
+  }
 }
 
 async function biliStreamUrl(roomId, qn, headers) {
@@ -2568,6 +2657,11 @@ function buildApp(serverCfg, roomsData) {
   // 静态资源不要求登录
   router.use('/static', express.static(PUBLIC_STATIC_DIR));
 
+  // 注意：关掉 extensions 自动补全，让后面的路由精确处理
+  router.use(express.static(PUBLIC_DIR, { 
+    index: false 
+  }));
+
   // ---------- 登录验证中间件 ----------
   router.use((req, res, next) => {
     if (
@@ -2611,17 +2705,25 @@ function buildApp(serverCfg, roomsData) {
   });
 
   // ---------- 页面路由 ----------
-  // 普通登录用户也可以进入管理员页面；
-  // 真正的管理员权限由删除原始录屏的 API 单独检查。
-  router.get('/video', (req, res) => {
-    res.sendFile(path.join(PUBLIC_DIR, 'video.html'));
+  
+  // 1. 处理首页
+  router.get('/', (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
   });
 
-  router.get('/list', (req, res) => {
+  // 2. 处理录屏列表页（兼容有无 .html 后缀）
+  router.get(['/list', '/list.html'], (req, res) => {
     res.sendFile(path.join(PUBLIC_DIR, 'list.html'));
   });
 
-  router.get('/admin', (req, res) => {
+  // 3. 处理视频播放页
+  router.get(['/video', '/video.html'], (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'video.html'));
+  });
+
+  // 4. 处理管理员页面：直接放行，前端自带密码验证逻辑
+  // 任何已登录的用户直接访问 /admin 或 /admin.html 都能看到页面（未验证密码则只显示密码框）
+  router.get(['/admin', '/admin.html'], (req, res) => {
     res.sendFile(path.join(PUBLIC_DIR, 'admin.html'));
   });
 
@@ -2631,12 +2733,6 @@ function buildApp(serverCfg, roomsData) {
   // /video?id=roomId_YYYYMMDD_序号
   //
   // 参数由 video.html 前端读取，后端不改变 fileId 格式。
-
-  // 其余静态页面和资源
-  router.use(express.static(PUBLIC_DIR, {
-    index: 'index.html',
-    extensions: ['html']
-  }));
 
   // ---------- 当前登录信息 ----------
   router.get('/api/me', (req, res) => {
@@ -3148,14 +3244,36 @@ function showHelp() {
 
   room add <房间号>              添加房间号
   room delete <房间号>           删除房间号
-  room rec <房间号> <true/false>  房间开始/停止录制（支持1/0）
-  room list <房间号>              显示该房间直播和录制状态
+  room rec <房间号/昵称> <true/false>  房间开始/停止录制（支持1/0）
+  room list <房间号/昵称>         显示该房间直播和录制状态
 `);
 }
 
 function findRoom(roomsData, roomId) {
   return roomsData.rooms.find(
     r => String(r.roomId) === String(roomId)
+  );
+}
+
+
+// 根据房间号或主播昵称查找直播间
+function findRoomByIdentifier(roomsData, identifier) {
+  const value = String(identifier || '')
+    .trim()
+    .replace(/^(['"])(.*)\1$/, '$2');
+
+  if (!value) return undefined;
+
+  // 优先按房间号查找
+  const roomById = roomsData.rooms.find(
+    r => String(r.roomId) === value
+  );
+
+  if (roomById) return roomById;
+
+  // 再按主播昵称查找，不区分英文大小写
+  return roomsData.rooms.find(
+    r => String(r.nick || '').trim().toLowerCase() === value.toLowerCase()
   );
 }
 
@@ -3411,13 +3529,27 @@ async function terminalCommand(line, serverCfg, roomsData) {
           return;
         }
 
+        // 获取主播昵称
+        let nick = '';
+
+        try {
+          nick = await biliAnchorNick(
+            info.uid,
+            serverCfg.recorder.headers
+          );
+        } catch (e) {
+          console.log(`[警告] 获取主播昵称失败：${e.message}`);
+        }
+
         const room = {
+          nick,
           id: realRoomId,
           roomId: Number(realRoomId),
           name: info.title || `直播间 ${realRoomId}`,
           quality: 10000,
           enabled: false
         };
+
 
         roomsData.rooms.push(room);
         saveRooms(roomsData);
@@ -3476,23 +3608,27 @@ async function terminalCommand(line, serverCfg, roomsData) {
 
     // ---------- room rec ----------
     if (action === 'rec') {
-      const roomNumber = args[2];
-      const value = args[3]?.toLowerCase();
+      const roomIdentifier = args.slice(2, -1).join(' ');
+      const value = args[args.length - 1]?.toLowerCase();
 
-      if (!roomNumber || !value) {
-        console.log('用法：room rec <房间号> <true/false 或 1/0>');
+      if (!roomIdentifier || !value) {
+        console.log('用法：room rec <房间号/昵称> <true/false 或 1/0>');
         return;
       }
+
 
       if (!['true', 'false', '1', '0'].includes(value)) {
         console.log('[错误] 只允许 true、false、1、0。');
         return;
       }
 
-      const room = findRoom(roomsData, roomNumber);
+      const room = findRoomByIdentifier(
+        roomsData,
+        roomIdentifier
+      );
 
       if (!room) {
-        console.log(`[错误] 房间不存在：${roomNumber}`);
+        console.log(`[错误] 房间不存在：${roomIdentifier}`);
         return;
       }
 
@@ -3508,7 +3644,7 @@ async function terminalCommand(line, serverCfg, roomsData) {
       );
 
       if (enabled) {
-        console.log(`[房间] ${room.roomId} 已启用录制`);
+        console.log(`[房间] ${room.nick || '未知主播'}（${room.roomId}）已启用录制`);
 
         // 如果正在录制，不重复启动
         if (recordingProcs.has(room.id)) {
@@ -3537,7 +3673,7 @@ async function terminalCommand(line, serverCfg, roomsData) {
           console.log(`[房间] 检查直播状态失败：${e.message}`);
         }
       } else {
-        console.log(`[房间] ${room.roomId} 已关闭录制`);
+        console.log(`[房间] ${room.nick || '未知主播'}（${room.roomId}）已关闭录制`);
 
         // 关闭录制并停止当前任务
         const stopped = stopRecording(room.id);
@@ -3558,19 +3694,23 @@ async function terminalCommand(line, serverCfg, roomsData) {
 
     // ---------- room list ----------
     if (action === 'list') {
-      const roomNumber = args[2];
+      const roomIdentifier = args.slice(2).join(' ');
 
-      if (!roomNumber) {
-        console.log('用法：room list <房间号>');
+      if (!roomIdentifier) {
+        console.log('用法：room list <房间号/昵称>');
         return;
       }
 
-      const room = findRoom(roomsData, roomNumber);
+      const room = findRoomByIdentifier(
+        roomsData,
+        roomIdentifier
+      );
 
       if (!room) {
-        console.log(`[错误] 房间不存在：${roomNumber}`);
+        console.log(`[错误] 房间不存在：${roomIdentifier}`);
         return;
       }
+
 
       try {
         const info = await biliRoomInfo(
@@ -3583,9 +3723,9 @@ async function terminalCommand(line, serverCfg, roomsData) {
         const state = roomStates.get(room.id) || 'idle';
 
         console.log('\n========== 直播间状态 ==========');
+        console.log(`主播昵称：${room.nick || '暂未获取'}`);
         console.log(`房间号：${room.roomId}`);
         console.log(`房间名称：${room.name}`);
-        console.log(`主播：${info.uname || '未知'}`);
         console.log(
           `直播状态：${info.live_status === 1 ? '直播中' : '未开播'}`
         );
@@ -3665,8 +3805,12 @@ function startTerminal(serverCfg, roomsData) {
 
 let httpServer = null;
 let cleanupTimer = null;
+let nickRefreshTimer = null;
 let cleanupRunning = false;
 let isShuttingDown = false;
+
+// 主播昵称每 24 小时更新一次
+const NICK_REFRESH_INTERVAL = 24 * 60 * 60 * 1000;
 
 // 启动程序
 function startServer() {
@@ -3707,6 +3851,18 @@ function startServer() {
       // 启动终端命令管理
 
       startTerminal(serverCfg, roomsData);
+
+      // 首次启动时立即更新所有主播昵称
+      refreshRoomNicknames(serverCfg, roomsData).catch(e => {
+        log('ERROR', `首次更新主播昵称失败：${e.message}`);
+      });
+
+      // 每 24 小时更新一次主播昵称
+      nickRefreshTimer = setInterval(() => {
+        refreshRoomNicknames(serverCfg, roomsData).catch(e => {
+          log('ERROR', `定时更新主播昵称失败：${e.message}`);
+        });
+      }, NICK_REFRESH_INTERVAL);
 
       // 8. 恢复未完成的转码任务
       recoverTranscodeQueue(serverCfg).catch(e => {
@@ -3814,6 +3970,11 @@ function shutdown(signal) {
     if (cleanupTimer) {
       clearInterval(cleanupTimer);
       cleanupTimer = null;
+    }
+
+    if (nickRefreshTimer) {
+      clearInterval(nickRefreshTimer);
+      nickRefreshTimer = null;
     }
 
     if (transcodeWakeupTimer) {

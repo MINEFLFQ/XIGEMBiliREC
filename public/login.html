@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录 · XIGEMBiliREC</title>
+  
+  <link rel="stylesheet" href="/style.css">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- 防闪烁：在渲染前尽早设置主题 -->
+  <script>
+    document.documentElement.setAttribute('data-theme', (function(){
+      try { 
+        var t = localStorage.getItem('xigem-theme'); 
+        return t === 'dark' ? 'dark' : 'light'; 
+      } catch(e) { return 'light'; }
+    })());
+  </script>
+  
+  <style>
+    /* 登录页专属居中布局 */
+    .login-wrapper {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+    }
+    /* 登录页的大 Logo */
+    .login-logo {
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+      margin-bottom: 16px;
+    }
+    /* 输入框在登录页稍微加大一点 */
+    .login-card input {
+      padding: 14px 16px;
+      font-size: 16px;
+      margin-bottom: 0; /* 由 form-group 控制间距 */
+    }
+    /* 聚焦时 Label 变色的小细节 */
+    .login-card .form-group:focus-within label {
+      color: var(--color-blurple);
+    }
+    [data-theme="dark"] .login-card .form-group:focus-within label {
+      color: var(--color-champagne);
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrapper">
+    <div class="card card-static login-card">
+      
+      <img class="login-logo" src="/logo.png" alt="logo" onerror="this.style.display='none'">
+      <h1 class="heading" style="margin-bottom: 8px;">XIGEMBiliREC</h1>
+      <p class="text-muted mb-24">登录以继续访问控制台</p>
+
+      <form id="loginForm" style="text-align: left;">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" id="username" placeholder="请输入用户名" required autocomplete="username">
+        </div>
+        <div class="form-group" style="margin-bottom: 24px;">
+          <label>密码</label>
+          <input type="password" id="password" placeholder="请输入密码" required autocomplete="current-password">
+        </div>
+        
+        <!-- 错误提示框：改为左对齐，去掉 text-center -->
+        <div id="errorMsg" style="color: var(--color-coral); font-size: 13px; margin-bottom: 16px; display: none;">
+          用户名或密码错误
+        </div>
+
+        <button type="submit" class="btn btn-primary w-full" id="submitBtn" style="padding: 14px;">登 录</button>
+      </form>
+
+    </div>
+  </div>
+
+  <script src="/theme.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const loginForm = document.getElementById('loginForm');
+      const usernameInput = document.getElementById('username');
+      const passwordInput = document.getElementById('password');
+      const submitBtn = document.getElementById('submitBtn');
+      const errorMsg = document.getElementById('errorMsg');
+
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+
+        if (!username || !password) {
+          XIGEM.toast('请输入用户名和密码', 'error');
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = '登录中...';
+        errorMsg.style.display = 'none';
+
+        try {
+          const response = await fetch((XIGEM.BASE || '/') + 'api/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin', 
+            body: JSON.stringify({ username, password }) 
+          });
+
+          const data = await response.json();
+
+          if (response.ok && data.ok) {
+            XIGEM.toast('登录成功，正在跳转...', 'success');
+            setTimeout(() => {
+              window.location.href = XIGEM.BASE || '/'; 
+            }, 800);
+          } else {
+            throw new Error(data.error || '登录失败');
+          }
+
+        } catch (error) {
+          console.error('Login Error:', error);
+          errorMsg.textContent = error.message;
+          errorMsg.style.display = 'block';
+          
+          submitBtn.disabled = false;
+          submitBtn.textContent = '登 录';
+          
+          passwordInput.value = '';
+          passwordInput.focus();
+        }
+      });
+
+      // 页面加载后自动聚焦用户名输入框
+      usernameInput.focus();
+    });
+  </script>
+</body>
+</html>

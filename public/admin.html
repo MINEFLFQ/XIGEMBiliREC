@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>管理员控制台 · XIGEMBiliREC</title>
+  
+  <!-- 修复资源路径，统一用绝对路径 -->
+  <link rel="stylesheet" href="/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- 防闪烁：在渲染前尽早设置主题 -->
+  <script>
+    document.documentElement.setAttribute('data-theme', (function(){
+      try { 
+        var t = localStorage.getItem('xigem-theme'); 
+        return t === 'dark' ? 'dark' : 'light'; 
+      } catch(e) { return 'light'; }
+    })());
+  </script>
+  <style>
+    /* 验证框布局 */
+    .auth-card {
+      max-width: 400px;
+      margin: 80px auto;
+      text-align: center;
+      padding: 40px;
+    }
+    .auth-card .heading {
+      margin-bottom: 8px;
+    }
+    
+    /* 控制台功能区卡片 */
+    .admin-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+      margin-top: 32px;
+    }
+    .admin-card {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .admin-card h3 {
+      margin: 0;
+      font-size: var(--text-subheading);
+      font-weight: var(--font-weight-semibold);
+    }
+    .admin-card p {
+      margin: 0;
+      color: var(--color-text-muted);
+      font-size: var(--text-body);
+      line-height: 1.6;
+    }
+
+    /* 危险区域 */
+    .danger-zone {
+      border: 1px solid rgba(255, 107, 107, 0.4);
+      border-radius: var(--radius-cards);
+      padding: 24px;
+      background: rgba(255, 107, 107, 0.05);
+      margin-top: 32px;
+    }
+    .danger-zone h3 {
+      color: var(--color-coral);
+      margin-top: 0;
+      margin-bottom: 8px;
+      font-size: var(--text-subheading);
+    }
+    .danger-zone p {
+      color: var(--color-text-muted);
+      font-size: var(--text-body);
+      margin-bottom: 16px;
+    }
+
+    /* 终端命令代码块 */
+    code {
+      background: var(--surface-sunken);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      color: var(--color-blurple);
+      font-size: 13px;
+    }
+    [data-theme="dark"] code {
+      color: var(--color-champagne);
+      background: rgba(255, 255, 255, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <div data-include="header"></div>
+
+  <main class="page-main">
+    <div class="container">
+
+      <!-- 未验证状态：输入密码 -->
+      <div id="authSection" class="hidden">
+        <div class="card card-static auth-card">
+          <h2 class="heading">安全验证</h2>
+          <p class="text-muted mb-24">此操作需要管理员权限，请输入密码</p>
+          
+          <form id="authForm">
+            <div class="form-group" style="text-align: left;">
+              <input type="password" id="adminPassword" placeholder="输入管理员密码" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-full mt-16" id="btnAuth">解锁控制台</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 已验证状态：控制台主体 -->
+      <div id="dashboardSection" class="hidden">
+        <div class="flex justify-between items-center" style="flex-wrap: wrap; gap:16px;">
+          <div>
+            <p class="label">Admin Console</p>
+            <h1 class="heading" style="margin:0;">管理员控制台</h1>
+          </div>
+          <div>
+            <a href="/list.html" class="btn">前往媒体库</a>
+          </div>
+        </div>
+
+        <!-- 功能网格 -->
+        <div class="admin-grid">
+          
+          <!-- 用户管理卡片 -->
+          <div class="card card-static admin-card">
+            <h3>用户管理</h3>
+            <p>当前后端为保证安全，未开放 HTTP 接口用于增删用户。请直接在服务器终端操作：</p>
+            <div style="background: var(--surface-sunken); padding: 12px; border-radius: var(--radius-inputs); margin-bottom: 8px;">
+              <div style="margin-bottom: 8px;"><code>user list</code> 查看所有用户</div>
+              <div style="margin-bottom: 8px;"><code>user set &lt;账号&gt; &lt;密码&gt;</code> 添加/重置密码</div>
+              <div><code>user delete &lt;账号&gt;</code> 删除用户</div>
+            </div>
+          </div>
+
+          <!-- 系统信息卡片 -->
+          <div class="card card-static admin-card">
+            <h3>系统状态</h3>
+            <p>服务当前运行正常。如果是首次部署，请务必注意以下安全建议：</p>
+            <ul style="color: var(--color-text-muted); font-size: var(--text-body); padding-left: 20px; line-height: 1.8;">
+              <li>请确保管理员密码已修改（终端 <code>admin password</code>）</li>
+              <li>检查 <code>server.json</code> 中的存储路径及总容量限制</li>
+              <li>如需更换监听端口或地址，需重启服务</li>
+            </ul>
+          </div>
+
+        </div>
+
+        <!-- 危险区域 -->
+        <div class="danger-zone">
+          <h3>⚠️ 危险区域</h3>
+          <p>以下操作可能会对数据造成不可逆的破坏，请谨慎执行。</p>
+          <div class="flex gap-16" style="flex-wrap: wrap;">
+            <button class="btn btn-danger" id="btnQuickDelete">强制删除指定原片</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <div data-include="footer"></div>
+  <script src="/theme.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const authSection = document.getElementById('authSection');
+      const dashboardSection = document.getElementById('dashboardSection');
+      const authForm = document.getElementById('authForm');
+      const btnAuth = document.getElementById('btnAuth');
+      const adminPassword = document.getElementById('adminPassword');
+
+      // 1. 检查初始状态
+      async function checkAuth() {
+        try {
+          const me = await XIGEM.api('/api/me');
+          // 后端判定：登录账号是 #admin#，且 adminAuthenticated 为 true
+          if (me.username === '#admin#' && me.adminAuthenticated) {
+            showDashboard();
+          } else {
+            authSection.classList.remove('hidden');
+            dashboardSection.classList.add('hidden');
+          }
+        } catch (e) {
+          // 未登录时会被 /api/me 拒绝，直接跳回登录页
+          window.location.href = '/login.html';
+        }
+      }
+
+      // 2. 显示控制台
+      function showDashboard() {
+        authSection.classList.add('hidden');
+        dashboardSection.classList.remove('hidden');
+      }
+
+      // 3. 提交密码验证
+      authForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const pwd = adminPassword.value.trim();
+        if (!pwd) return;
+
+        btnAuth.disabled = true;
+        btnAuth.textContent = '验证中...';
+
+        try {
+          await XIGEM.api('/api/admin/login', {
+            method: 'POST',
+            body: JSON.stringify({ password: pwd })
+          });
+          XIGEM.toast('验证成功，已解锁控制台', 'success');
+          showDashboard();
+          adminPassword.value = '';
+        } catch (e) {
+          XIGEM.toast(e.message || '密码错误', 'error');
+          btnAuth.disabled = false;
+          btnAuth.textContent = '解锁控制台';
+        }
+      });
+
+      // 4. 快速强制删除原片
+      document.getElementById('btnQuickDelete').addEventListener('click', () => {
+        XIGEM.openModal({
+          title: '强制删除原片',
+          content: `
+            <p class="text-muted mb-16" style="font-size:13px; line-height:1.6;">
+              输入完整的文件标识（格式：<strong>房间号_日期_序号</strong>，例如 <code>2233_20261122_0</code>）。
+              <br><br>
+              <span style="color:var(--color-coral);">⚠️ 警告：此操作会绕过常规的前端校验，直接删除原片及其 HLS 预览，不可恢复！</span>
+            </p>
+            <div class="form-group">
+              <label>File ID</label>
+              <input type="text" id="quickDeleteInput" placeholder="2233_20261122_0">
+            </div>
+          `,
+          confirmText: '确认删除',
+          cancelText: '取消',
+          onConfirm: async (overlay) => {
+            const val = overlay.querySelector('#quickDeleteInput').value.trim();
+            if (!val) {
+              XIGEM.toast('请输入 File ID', 'error');
+              return false;
+            }
+
+            // 解析 roomId
+            const match = val.match(/^([a-zA-Z0-9_-]+)_(\d{8})_(\d+)$/);
+            if (!match) {
+              XIGEM.toast('File ID 格式不正确', 'error');
+              return false;
+            }
+            const roomId = match[1];
+
+            const btn = overlay.querySelector('[data-modal-confirm]');
+            btn.textContent = '删除中...';
+            btn.disabled = true;
+
+            try {
+              await XIGEM.api(`/api/admin/recordings/${roomId}/${val}`, { method: 'DELETE' });
+              XIGEM.toast('原片已彻底删除', 'success');
+              return true;
+            } catch (e) {
+              XIGEM.toast(e.message || '删除失败', 'error');
+              btn.textContent = '确认删除';
+              btn.disabled = false;
+              return false;
+            }
+          }
+        });
+      });
+
+      // 初始化执行
+      checkAuth();
+    });
+  </script>
+</body>
+</html>

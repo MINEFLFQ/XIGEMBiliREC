@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>视频预览与切片 · XIGEMBiliREC</title>
+  
+  <!-- 绝对路径 -->
+  <link rel="stylesheet" href="/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- 引入 hls.js 用于播放 m3u8 -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.min.js"></script>
+  
+  <!-- 防闪烁 -->
+  <script>
+    document.documentElement.setAttribute('data-theme', (function(){
+      try { 
+        var t = localStorage.getItem('xigem-theme'); 
+        return t === 'dark' ? 'dark' : 'light'; 
+      } catch(e) { return 'light'; }
+    })());
+  </script>
+  
+  <style>
+    /* 视频容器专属样式，保持比例 */
+    .video-container {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-radius: var(--radius-inputs);
+      overflow: hidden;
+      position: relative;
+      box-shadow: var(--shadow-recessed);
+    }
+    .video-container video {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+    }
+    .video-error {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-muted);
+      background: var(--surface-base);
+      text-align: center;
+      padding: 24px;
+      border-radius: var(--radius-inputs);
+    }
+    .video-error .empty-title {
+      font-size: var(--text-body-lg);
+      color: var(--color-text);
+      margin-bottom: 8px;
+    }
+    /* 时间输入网格 */
+    .time-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 600px) {
+      .time-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div data-include="header"></div>
+
+  <main class="page-main">
+    <div class="container">
+      
+      <!-- 标题与状态 -->
+      <div class="flex justify-between items-center mb-24" style="flex-wrap: wrap; gap:16px;">
+        <div>
+          <p class="label">Video Preview</p>
+          <h1 class="heading" id="pageTitle" style="margin:0;">视频预览</h1>
+          <p class="text-muted" id="fileInfo" style="margin-top: 4px;">加载中...</p>
+        </div>
+        <div>
+          <a href="/list.html" class="btn">返回媒体库</a>
+        </div>
+      </div>
+
+      <!-- 播放器 -->
+      <div class="card card-static" style="padding: 16px; margin-bottom: 32px;">
+        <div class="video-container" id="videoContainer">
+          <video id="videoPlayer" controls preload="metadata"></video>
+          <div class="video-error hidden" id="videoError">
+            <div class="empty-icon">◌</div>
+            <div class="empty-title">视频不见了</div>
+            <div id="errorMsg">请检查链接是否完整，或者原片是否已被删除。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 切片操作区 -->
+      <section class="mt-32" id="clipSection">
+        <h2 class="heading">视频切片</h2>
+        
+        <div class="flex gap-16 mb-24" style="flex-wrap: wrap;">
+          <div class="stat-tile" style="flex:1;min-width:160px; padding: 16px;">
+            <div class="stat-label">今日剩余切片</div>
+            <div class="stat-value" style="font-size: 28px;" id="statQuota">- / -</div>
+          </div>
+          <div class="stat-tile" style="flex:1;min-width:160px; padding: 16px;">
+            <div class="stat-label">当前文件状态</div>
+            <div class="stat-value" style="font-size: 28px;"><span class="badge badge-ready" id="badgeStatus">未知</span></div>
+          </div>
+        </div>
+
+        <div class="card card-static">
+          <div class="form-group time-grid">
+            <div>
+              <label>开始时间</label>
+              <input type="text" id="startTime" placeholder="例如 00:10:00 或 600">
+            </div>
+            <div>
+              <label>结束时间</label>
+              <input type="text" id="endTime" placeholder="例如 00:15:00 或 900">
+            </div>
+          </div>
+          
+          <div class="flex gap-16 mt-24 items-center" style="flex-wrap: wrap;">
+            <button class="btn btn-primary" id="btnClip" type="button">提交切片任务</button>
+            <span class="text-muted" id="clipStatus">支持格式: HH:MM:SS, MM:SS, 或秒数 (最长 7 天)</span>
+          </div>
+          
+          <!-- 切片完成后显示 -->
+          <div class="mt-24 hidden" id="resultBox">
+            <div class="panel" style="background: rgba(78, 205, 196, 0.1); border: 1px solid var(--color-mint);">
+              <p style="color: var(--color-mint); font-weight: var(--font-weight-medium); margin-bottom: 12px;">🎉 切片已完成</p>
+              <a href="#" class="btn" id="btnDownload" target="_blank" style="background: var(--color-mint); color: #fff; border: none;">下载切片视频</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <div data-include="footer"></div>
+  <script src="/theme.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      let fileId = urlParams.get('file') || urlParams.get('id') || urlParams.get('');
+
+      // 如果缺少参数，直接在播放器内提示并终止
+      if (!fileId) {
+        showFatalError('视频不见了', '缺少文件参数，请从列表重新进入。');
+        return;
+      }
+
+      // 解析 roomId (格式: roomId_YYYYMMDD_序号)
+      const match = fileId.match(/^([a-zA-Z0-9_-]+)_(\d{8})_(\d+)$/);
+      if (!match) {
+        showFatalError('视频不见了', '文件 ID 格式不正确，请从列表重新进入。');
+        return;
+      }
+      const roomId = match[1];
+
+      // 更新页面信息
+      document.getElementById('pageTitle').textContent = fileId;
+      document.getElementById('fileInfo').textContent = `房间 ID: ${roomId}`;
+
+      // 初始化播放器
+      const video = document.getElementById('videoPlayer');
+      const errorEl = document.getElementById('videoError');
+      const hlsUrl = `${XIGEM.BASE}stream/${roomId}/${fileId}/index.m3u8`;
+
+      if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(hlsUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.ERROR, function (event, data) {
+          if (data.fatal) {
+            showPlaybackError();
+          }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = hlsUrl;
+        video.addEventListener('error', showPlaybackError);
+      } else {
+        showPlaybackError();
+      }
+
+      function showPlaybackError() {
+        video.classList.add('hidden');
+        errorEl.classList.remove('hidden');
+        document.getElementById('errorMsg').textContent = '可能原片还在转码中，或者 HLS 预览文件不存在。';
+      }
+
+      function showFatalError(title, msg) {
+        document.getElementById('pageTitle').textContent = '错误';
+        document.getElementById('fileInfo').textContent = '';
+        video.classList.add('hidden');
+        errorEl.classList.remove('hidden');
+        document.querySelector('.video-error .empty-title').textContent = title;
+        document.getElementById('errorMsg').textContent = msg;
+        
+        // 隐藏切片操作区，因为文件不存在
+        document.getElementById('clipSection').classList.add('hidden');
+      }
+
+      // 5. 检查用户权限、文件状态与配额
+      try {
+        const me = await XIGEM.api('/api/me');
+        if (me.username === '#admin#') {
+          // 管理员账号不可切片
+          document.getElementById('clipSection').classList.add('hidden');
+        } else {
+          // 检查切片配额
+          const stats = await XIGEM.api('/api/stats/today');
+          document.getElementById('statQuota').textContent = `${stats.count} / ${stats.limit}`;
+        }
+
+        // 检查文件列表，确认文件状态
+        const listRes = await XIGEM.api('/api/recordings');
+        const fileData = listRes.items.find(f => f.fileId === fileId);
+        
+        if (fileData) {
+          const badge = document.getElementById('badgeStatus');
+          badge.textContent = fileData.status.toUpperCase();
+          badge.className = `badge badge-${fileData.status}`;
+          
+          if (fileData.status !== 'ready') {
+            const btnClip = document.getElementById('btnClip');
+            btnClip.disabled = true;
+            document.getElementById('clipStatus').textContent = '原片尚未转码完成，无法切片。';
+          }
+        } else {
+          // 如果文件列表里没有，说明文件真的不见了
+          showFatalError('视频不见了', '后端记录中找不到此文件，可能已被自动清理或删除。');
+        }
+      } catch (e) {
+        console.error('获取数据失败', e);
+      }
+
+      // 6. 提交切片任务
+      const btnClip = document.getElementById('btnClip');
+      const clipStatus = document.getElementById('clipStatus');
+      const resultBox = document.getElementById('resultBox');
+      const btnDownload = document.getElementById('btnDownload');
+
+      btnClip.addEventListener('click', async () => {
+        const start = document.getElementById('startTime').value.trim();
+        const end = document.getElementById('endTime').value.trim();
+
+        if (!start || !end) {
+          XIGEM.toast('请输入开始和结束时间', 'error');
+          return;
+        }
+
+        btnClip.disabled = true;
+        btnClip.textContent = '提交中...';
+        resultBox.classList.add('hidden');
+
+        try {
+          const res = await XIGEM.api('/api/clip', {
+            method: 'POST',
+            body: JSON.stringify({ roomId, fileId, start, end })
+          });
+
+          if (res.ok) {
+            clipStatus.textContent = '任务已提交，正在排队...';
+            pollTask(res.taskId);
+          }
+        } catch (e) {
+          XIGEM.toast(e.message || '提交失败', 'error');
+          resetBtn();
+        }
+      });
+
+      function resetBtn() {
+        btnClip.disabled = false;
+        btnClip.textContent = '提交切片任务';
+      }
+
+      // 7. 轮询任务状态
+      async function pollTask(taskId) {
+        try {
+          const res = await XIGEM.api(`/api/clip/${taskId}/status`);
+          
+          if (res.status === 'queued' || res.status === 'running') {
+            clipStatus.textContent = res.status === 'queued' ? '排队中...' : '正在切片，请稍候...';
+            setTimeout(() => pollTask(taskId), 2000);
+          } else if (res.status === 'done') {
+            clipStatus.textContent = '切片完成！';
+            XIGEM.toast('切片完成', 'success');
+            resetBtn();
+            
+            // 显示下载按钮
+            resultBox.classList.remove('hidden');
+            btnDownload.href = XIGEM.BASE + res.downloadUrl.replace(/^\//, '');
+            btnDownload.setAttribute('download', res.outName);
+            
+            // 刷新配额
+            const stats = await XIGEM.api('/api/stats/today');
+            document.getElementById('statQuota').textContent = `${stats.count} / ${stats.limit}`;
+            
+          } else if (res.status === 'failed') {
+            clipStatus.textContent = '切片失败：' + (res.error || '未知错误');
+            XIGEM.toast('切片失败', 'error');
+            resetBtn();
+          }
+        } catch (e) {
+          clipStatus.textContent = '轮询状态失败';
+          resetBtn();
+        }
+      }
+    });
+  </script>
+</body>
+</html>

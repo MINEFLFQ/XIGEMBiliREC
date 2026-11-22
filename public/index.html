@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>主页 · XIGEMBiliREC</title>
+  
+  <!-- 静态资源路径，使用绝对路径 -->
+  <link rel="stylesheet" href="/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- 防闪烁：在渲染前尽早设置主题 -->
+  <script>
+    document.documentElement.setAttribute('data-theme', (function(){
+      try { 
+        var t = localStorage.getItem('xigem-theme'); 
+        return t === 'dark' ? 'dark' : 'light'; 
+      } catch(e) { return 'light'; }
+    })());
+  </script>
+  <style>
+    /* 主页特有的网格布局 */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+      margin-top: 32px;
+    }
+    @media (max-width: 768px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* 英雄区样式 */
+    .hero {
+      padding: 48px 0;
+      text-align: center;
+    }
+    .hero .display {
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, var(--color-blurple), var(--color-mint));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: inline-block;
+    }
+    [data-theme="dark"] .hero .display {
+      background: linear-gradient(135deg, var(--color-champagne), var(--color-moonlight));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* 主要行动卡片（左侧大块） */
+    .main-action-card {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 48px;
+      text-decoration: none;
+      color: var(--color-text);
+      position: relative;
+      overflow: hidden;
+      height: 100%;
+    }
+    .main-action-card::after {
+      content: '🎬';
+      position: absolute;
+      right: -20px;
+      bottom: -20px;
+      font-size: 160px;
+      opacity: 0.05;
+      transform: rotate(-15deg);
+      pointer-events: none;
+      transition: transform var(--transition-slow), opacity var(--transition-slow);
+    }
+    .main-action-card:hover::after {
+      transform: rotate(0deg) scale(1.1);
+      opacity: 0.1;
+    }
+    .main-action-card .title {
+      font-size: 32px;
+      font-weight: var(--font-weight-semibold);
+      margin-bottom: 12px;
+      z-index: 1;
+    }
+    .main-action-card .desc {
+      font-size: var(--text-body-lg);
+      color: var(--color-text-muted);
+      margin-bottom: 32px;
+      max-width: 80%;
+      z-index: 1;
+    }
+    .main-action-card .btn {
+      z-index: 1;
+    }
+
+    /* 右侧小卡片通用样式 */
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 32px;
+      gap: 16px;
+    }
+
+    /* 进度条 */
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      background: var(--border-color);
+      border-radius: var(--radius-pills);
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    [data-theme="light"] .progress-track { background: rgba(184, 188, 194, 0.4); }
+    [data-theme="dark"] .progress-track { background: rgba(255, 255, 255, 0.1); }
+    
+    .progress-fill {
+      height: 100%;
+      background: var(--color-blurple);
+      border-radius: var(--radius-pills);
+      transition: width 0.5s ease-out, background 0.3s;
+    }
+    [data-theme="dark"] .progress-fill { background: var(--color-champagne); }
+    .progress-fill.danger { background: var(--color-coral) !important; }
+
+    /* 我的切片卡片 */
+    .clip-action-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      text-decoration: none;
+      color: var(--color-text);
+      padding: 20px;
+    }
+    .clip-action-card .icon {
+      font-size: 32px;
+      background: var(--surface-base);
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-buttons);
+      box-shadow: var(--shadow-raised);
+    }
+    [data-theme="dark"] .clip-action-card .icon {
+      background: var(--color-glass-fill);
+      border: 1px solid var(--border-color);
+      box-shadow: none;
+    }
+    .clip-action-card .text h3 {
+      font-size: var(--text-subheading);
+      margin: 0 0 4px;
+      font-weight: var(--font-weight-semibold);
+    }
+    .clip-action-card .text p {
+      font-size: var(--text-body);
+      color: var(--color-text-muted);
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div data-include="header"></div>
+
+  <main class="page-main">
+    <div class="container">
+      
+      <!-- 顶部欢迎区 -->
+      <section class="hero">
+        <p class="label">Dashboard</p>
+        <h1 class="display" id="welcomeText">你好，加载中...</h1>
+        <p class="body-lg text-muted" id="subTitle">正在获取你的账户信息...</p>
+      </section>
+
+      <!-- 主体仪表盘 -->
+      <div class="dashboard-grid">
+        
+        <!-- 左侧：主要入口 -->
+        <a href="/list.html" class="card main-action-card">
+          <div class="title">录屏媒体库</div>
+          <div class="desc">浏览所有录制完成的高清视频，找到你需要的片段进行预览，或提交切片任务。</div>
+          <span class="btn btn-primary">进入媒体库</span>
+        </a>
+
+        <!-- 右侧：数据与辅助功能 -->
+        <div class="flex flex-col gap-24">
+          
+          <!-- 切片配额 -->
+          <div class="card side-panel">
+            <div>
+              <div class="label" style="margin-bottom: 8px;">今日切片配额</div>
+              <div class="flex justify-between items-center">
+                <div class="heading" style="margin: 0;" id="statQuota">- / -</div>
+                <div class="text-muted" style="font-size: 12px;" id="statRemaining">计算中...</div>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" id="quotaProgress" style="width: 0%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 我的切片入口 -->
+          <a href="/list.html" class="card clip-action-card" style="flex: 1;">
+            <div class="icon">✂️</div>
+            <div class="text">
+              <h3>我的切片</h3>
+              <p>查看已导出的切片并下载</p>
+            </div>
+          </a>
+
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <div data-include="footer"></div>
+  <script src="/theme.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const welcomeText = document.getElementById('welcomeText');
+      const subTitle = document.getElementById('subTitle');
+      const statQuota = document.getElementById('statQuota');
+      const statRemaining = document.getElementById('statRemaining');
+      const quotaProgress = document.getElementById('quotaProgress');
+
+      try {
+        // 1. 获取当前登录信息
+        const me = await XIGEM.api('/api/me');
+        if (me.username === '#admin#') {
+          welcomeText.textContent = '你好，管理员';
+          subTitle.textContent = '欢迎回来，今天想做点什么？';
+        } else {
+          welcomeText.textContent = `你好，${me.username}`;
+          subTitle.textContent = '准备好开始你的直播切片了吗？';
+        }
+
+        // 2. 获取今日配额数据
+        const stats = await XIGEM.api('/api/stats/today');
+        statQuota.textContent = `${stats.count} / ${stats.limit}`;
+        
+        const remaining = stats.limit - stats.count;
+        if (remaining <= 0) {
+          statRemaining.textContent = '今日已用完';
+          statRemaining.style.color = 'var(--color-coral)';
+          quotaProgress.classList.add('danger');
+        } else {
+          statRemaining.textContent = `剩余 ${remaining} 次`;
+        }
+
+        // 计算进度条百分比
+        const percent = Math.min(100, Math.max(0, (stats.count / stats.limit) * 100));
+        // 延迟一点点执行，让进度条有动画效果
+        setTimeout(() => {
+          quotaProgress.style.width = `${percent}%`;
+        }, 100);
+
+      } catch (e) {
+        console.error('获取仪表盘数据失败:', e);
+        welcomeText.textContent = '你好，访客';
+        subTitle.textContent = '账户信息获取失败';
+        statQuota.textContent = '未知';
+        statRemaining.textContent = '-';
+      }
+    });
+  </script>
+</body>
+</html>
