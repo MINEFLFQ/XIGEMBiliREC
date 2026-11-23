@@ -278,10 +278,13 @@
 
         if (keyword) {
           filtered = allRecordings.filter(item => {
-            const nick = item.nick || '';
-            return item.roomId.toLowerCase().includes(keyword) ||
-                   item.fileId.toLowerCase().includes(keyword) ||
-                   nick.toLowerCase().includes(keyword);
+            const roomId = String(item.roomId || '').toLowerCase();
+            const fileId = String(item.fileId || '').toLowerCase();
+            const nick = String(item.nick || '').toLowerCase();
+
+            return roomId.includes(keyword) ||
+                   fileId.includes(keyword) ||
+                   nick.includes(keyword);
           });
         }
 
@@ -293,10 +296,15 @@
         filtered.sort((a, b) => b.createdAt - a.createdAt);
 
         let html = '';
+
         for (const item of filtered) {
+          const roomId = String(item.roomId || '');
+          const fileId = String(item.fileId || '');
+          const fileName = String(item.fileName || fileId);
+          const nick = String(item.nick || '未知主播');
+
           const sizeStr = formatSize(item.size);
-          const dateStr = new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false });
-          const nick = item.nick || '未知主播';
+          const dateStr = formatDate(item.createdAt);
 
           let badgeClass = 'badge-ready';
           let statusText = 'Ready';
@@ -313,23 +321,36 @@
           }
 
           const playBtn = canPlay
-            ? `<a href="/video?file=${encodeURIComponent(item.fileId)}" class="btn btn-primary" style="padding: 6px 16px; font-size: 12px;">播放/切片</a>`
+            ? `<a href="/video?file=${encodeURIComponent(fileId)}" class="btn btn-primary" style="padding: 6px 16px; font-size: 12px;">播放/切片</a>`
             : `<button class="btn" disabled style="padding: 6px 16px; font-size: 12px;">请稍候</button>`;
 
           const deleteBtn = (isAdmin && isDeleteMode)
-            ? `<button class="btn btn-danger btn-del" data-room="${item.roomId}" data-file="${item.fileId}" data-name="${item.fileName}" style="padding: 6px 16px; font-size: 12px;">删除</button>`
+            ? `
+              <button
+                class="btn btn-danger btn-del"
+                data-room="${XIGEM.escapeHtml(roomId)}"
+                data-file="${XIGEM.escapeHtml(fileId)}"
+                data-name="${XIGEM.escapeHtml(fileName)}"
+                type="button"
+                style="padding: 6px 16px; font-size: 12px;"
+              >删除</button>
+            `
             : '';
 
-          // 把主播昵称做成 Badge，并且点击跳转直播间
           html += `
             <tr>
               <td>
-                <a href="https://live.bilibili.com/${item.roomId}" target="_blank" class="badge badge-ready anchor-badge">
-                  ${nick}
+                <a
+                  href="https://live.bilibili.com/${encodeURIComponent(roomId)}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="badge badge-ready anchor-badge"
+                >
+                  ${XIGEM.escapeHtml(nick)}
                 </a>
               </td>
               <td>
-                <span class="file-name" title="${item.fileName}">${item.fileName}</span>
+                <span class="file-name" title="${XIGEM.escapeHtml(fileName)}">${XIGEM.escapeHtml(fileName)}</span>
               </td>
               <td>${sizeStr}</td>
               <td>${dateStr}</td>
@@ -343,6 +364,7 @@
             </tr>
           `;
         }
+
         tableBody.innerHTML = html;
 
         if (isAdmin && isDeleteMode) {
@@ -359,58 +381,148 @@
 
       // 5. 渲染我的切片
       function renderClips(items) {
-        if (!items.length) {
+        if (!Array.isArray(items) || !items.length) {
           XIGEM.setEmpty(clipsBody, '暂无切片', '你还没有切过视频，去录屏列表里挑一个吧。');
           return;
         }
 
         let html = '';
+
         for (const item of items) {
+          const name = String(item.name || '');
           const sizeStr = formatSize(item.size);
-          const dateStr = new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false });
-          const downloadUrl = XIGEM.BASE + item.downloadUrl.replace(/^\//, '');
+          const dateStr = formatDate(item.createdAt);
+          const downloadUrl = getSafeDownloadUrl(item.downloadUrl);
 
           html += `
             <tr>
               <td>
-                <span class="file-name" title="${item.name}">${item.name}</span>
+                <span class="file-name" title="${XIGEM.escapeHtml(name)}">${XIGEM.escapeHtml(name)}</span>
               </td>
               <td>${sizeStr}</td>
               <td>${dateStr}</td>
               <td>
                 <div class="action-btns">
-                  <a href="${downloadUrl}" class="btn btn-primary" style="padding: 6px 16px; font-size: 12px;" target="_blank">下载</a>
-                  <button class="btn btn-danger btn-clip-del" data-name="${item.name}" style="padding: 6px 16px; font-size: 12px;">删除</button>
+                  <a
+                    href="${XIGEM.escapeHtml(downloadUrl)}"
+                    class="btn btn-primary"
+                    style="padding: 6px 16px; font-size: 12px;"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >下载</a>
+
+                  <button
+                    class="btn btn-danger btn-clip-del"
+                    data-name="${XIGEM.escapeHtml(name)}"
+                    type="button"
+                    style="padding: 6px 16px; font-size: 12px;"
+                  >删除</button>
                 </div>
               </td>
             </tr>
           `;
         }
-        clipsBody.innerHTML = html;
 
-        document.querySelectorAll('.btn-clip-del').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            const name = e.target.getAttribute('data-name');
-            confirmDeleteClip(name);
-          });
+        clipsBody.innerHTML = html;
+      }
+
+            // 原片删除：事件委托
+      tableBody.addEventListener('click', e => {
+        const button = e.target.closest('.btn-del');
+
+        if (!button || !tableBody.contains(button)) {
+          return;
+        }
+
+        confirmDelete(
+          button.dataset.room,
+          button.dataset.file,
+          button.dataset.name
+        );
+      });
+
+      // 切片删除：事件委托
+      clipsBody.addEventListener('click', e => {
+        const button = e.target.closest('.btn-clip-del');
+
+        if (!button || !clipsBody.contains(button)) {
+          return;
+        }
+
+        confirmDeleteClip(button.dataset.name);
+      });
+      
+      // 6. 格式化文件大小
+      function formatSize(bytes) {
+        const value = Number(bytes);
+
+        if (!Number.isFinite(value) || value <= 0) {
+          return '0 B';
+        }
+
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+
+        const i = Math.min(
+          Math.floor(Math.log(value) / Math.log(k)),
+          sizes.length - 1
+        );
+
+        return parseFloat(
+          (value / Math.pow(k, i)).toFixed(2)
+        ) + ' ' + sizes[i];
+      }
+
+      // 格式化日期
+      function formatDate(value) {
+        const date = new Date(value);
+
+        if (!Number.isFinite(date.getTime())) {
+          return '-';
+        }
+
+        return date.toLocaleString('zh-CN', {
+          hour12: false
         });
       }
 
-      // 6. 格式化文件大小
-      function formatSize(bytes) {
-        if (!bytes) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      // 验证切片下载地址
+      function getSafeDownloadUrl(value) {
+        const raw = String(value || '');
+
+        if (!raw || raw.includes('\\')) {
+          return '#';
+        }
+
+        try {
+          const url = new URL(
+            raw.startsWith('/') ? raw : '/' + raw,
+            window.location.origin
+          );
+
+          if (url.origin !== window.location.origin) {
+            return '#';
+          }
+
+          return url.pathname + url.search + url.hash;
+
+        } catch (e) {
+          return '#';
+        }
       }
 
       // 7. 删除确认：原片
       function confirmDelete(roomId, fileId, fileName) {
         XIGEM.openModal({
           title: '⚠️ 确认删除原片',
-          content: `<p style="line-height:1.6;">确定要删除 <strong>${fileName}</strong> 吗？</p>
-                    <p class="text-muted" style="font-size:12px; margin-top:8px;">此操作将同时删除对应的 HLS 预览文件，且无法恢复。</p>`,
+            content: `
+            <p style="line-height:1.6;">
+              确定要删除 <strong>${XIGEM.escapeHtml(fileName)}</strong> 吗？
+            </p>
+            <p class="text-muted" style="font-size:12px; margin-top:8px;">
+              此操作将同时删除对应的 HLS 预览文件，且无法恢复。
+            </p>
+          `,
           confirmText: '永久删除',
           cancelText: '取消',
           onConfirm: async (overlay) => {
@@ -419,7 +531,12 @@
             btn.disabled = true;
 
             try {
-              await XIGEM.api(`/api/admin/recordings/${roomId}/${fileId}`, { method: 'DELETE' });
+              await XIGEM.api(
+                `/api/admin/recordings/${encodeURIComponent(roomId)}/${encodeURIComponent(fileId)}`,
+                {
+                  method: 'DELETE'
+                }
+              );
               XIGEM.toast('删除成功', 'success');
               loadRecordings();
               return true;
@@ -437,7 +554,11 @@
       function confirmDeleteClip(fileName) {
         XIGEM.openModal({
           title: '⚠️ 删除切片',
-          content: `<p style="line-height:1.6;">确定要删除切片 <strong>${fileName}</strong> 吗？</p>`,
+          content: `
+            <p style="line-height:1.6;">
+              确定要删除切片 <strong>${XIGEM.escapeHtml(fileName)}</strong> 吗？
+            </p>
+          `,
           confirmText: '删除',
           cancelText: '取消',
           onConfirm: async (overlay) => {

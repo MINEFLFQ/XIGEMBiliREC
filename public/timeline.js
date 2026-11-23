@@ -67,8 +67,8 @@
               <button class="btn" id="btnSetStart" type="button" style="font-weight: 700;">打入点</button>
               <button class="btn" id="btnSetEnd" type="button" style="font-weight: 700;">打出点</button>
               <div style="width: 1px; height: 24px; background: var(--border-color); margin: 0 8px;"></div>
-              <button class="btn btn-primary" id="btnClip" type="button" style="display:none;" style="font-weight: 700;">提交切片</button>
-              <a class="btn" id="btnDownload" href="#" target="_blank" style="display:none; background: var(--color-mint); color: #fff; border: none; text-decoration: none !important;" style="font-weight: 700;">下载切片</a>
+              <button class="btn btn-primary" id="btnClip" type="button" style="display:none; font-weight:700;">提交切片</button>
+              <a class="btn" id="btnDownload" href="#" target="_blank" rel="noopener noreferrer" style="display:none; background:var(--color-mint); color:#fff; border:none; text-decoration:none !important; font-weight:700;">下载切片</a>
             </div>
           </div>
           <div class="tl-track-container" id="tlTrack">
@@ -100,12 +100,27 @@
     }
     
     bindEvents() {
-      this.video.addEventListener('loadedmetadata', () => {
-        this.duration = this.video.duration;
-        this.endTime = this.duration;
+      const updateDuration = () => {
+        const duration = this.video.duration;
+
+        if (!Number.isFinite(duration) || duration <= 0) {
+          return;
+        }
+
+        this.duration = duration;
+        this.endTime = duration;
+
         this.updateUI();
         this.updateInputs();
-      });
+      };
+
+      this.video.addEventListener('loadedmetadata', updateDuration);
+      this.video.addEventListener('durationchange', updateDuration);
+
+      // 如果视频元数据已经加载，立即初始化时间轴
+      if (this.video.readyState >= 1) {
+        updateDuration();
+      }
 
       this.video.addEventListener('timeupdate', () => {
         if (!this.isDragging) {
@@ -154,42 +169,66 @@
       const startDrag = (type, e) => {
         this.isDragging = true;
         this.dragType = type;
-        document.body.style.cursor = type === 'playhead' ? 'pointer' : 'ew-resize';
+
+        document.body.style.cursor =
+          type === 'playhead' ? 'pointer' : 'ew-resize';
+
+        if (e.currentTarget.setPointerCapture) {
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId);
+          } catch (error) {}
+        }
+
         e.preventDefault();
       };
 
-      this.handleLeft.addEventListener('mousedown', (e) => {
+      this.handleLeft.addEventListener('pointerdown', e => {
         e.stopPropagation();
         startDrag('start', e);
-        });
-      this.handleRight.addEventListener('mousedown', (e) => {
+      });
+
+      this.handleRight.addEventListener('pointerdown', e => {
         e.stopPropagation();
         startDrag('end', e);
       });
 
-      this.track.addEventListener('mousedown', (e) => {
+      this.track.addEventListener('pointerdown', e => {
         startDrag('playhead', e);
         this.handleDrag(e);
       });
 
-      window.addEventListener('mousemove', (e) => {
-        if (this.isDragging) this.handleDrag(e);
-      });
-
-      window.addEventListener('mouseup', () => {
+      window.addEventListener('pointermove', e => {
         if (this.isDragging) {
-          this.isDragging = false;
-          this.dragType = null;
-          document.body.style.cursor = 'default';
-          this.updateInputs();
+          this.handleDrag(e);
         }
       });
+
+      const stopDrag = () => {
+        if (!this.isDragging) return;
+
+        this.isDragging = false;
+        this.dragType = null;
+
+        document.body.style.cursor = 'default';
+
+        this.updateInputs();
+      };
+
+      window.addEventListener('pointerup', stopDrag);
+      window.addEventListener('pointercancel', stopDrag);
     }
 
     handleDrag(e) {
       const rect = this.track.getBoundingClientRect();
+
+      if (rect.width <= 0 || this.duration <= 0) {
+        return;
+      }
+
       let x = e.clientX - rect.left;
+
       x = Math.max(0, Math.min(x, rect.width));
+
       const time = (x / rect.width) * this.duration;
 
       if (this.dragType === 'start') {

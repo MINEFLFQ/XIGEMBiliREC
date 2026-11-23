@@ -154,6 +154,7 @@
     .tl-track-container {
       position: relative;
       height: 48px;
+      touch-action: pan-y;
       background: var(--surface-sunken);
       border-radius: var(--radius-inputs);
       border: 1px solid var(--border-color);
@@ -333,6 +334,9 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
+      const video = document.getElementById('videoPlayer');
+      const errorEl = document.getElementById('videoError');
+
       const urlParams = new URLSearchParams(window.location.search);
       let fileId = urlParams.get('file') || urlParams.get('id') || urlParams.get('');
 
@@ -351,11 +355,9 @@
 
       document.getElementById('pageTitle').textContent = fileId;
 
-      const video = document.getElementById('videoPlayer');
-      const errorEl = document.getElementById('videoError');
       const hlsUrl = `${XIGEM.BASE}stream/${roomId}/${fileId}/index.m3u8`;
 
-      if (Hls.isSupported()) {
+      if (typeof Hls !== 'undefined' && Hls.isSupported()) {
         const hls = new Hls();
         hls.loadSource(hlsUrl);
         hls.attachMedia(video);
@@ -416,11 +418,25 @@
           badge.textContent = fileData.status.toUpperCase();
           badge.className = `badge badge-${fileData.status}`;
 
-          const bytes = fileData.size;
-          const k = 1024;
-          const sizes = ['B', 'KB', 'MB', 'GB'];
-          const i = Math.floor(Math.log(bytes) / Math.log(k));
-          document.getElementById('statSize').textContent = parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+          const bytes = Number(fileData.size);
+
+          let sizeText = '0 B';
+
+          if (Number.isFinite(bytes) && bytes > 0) {
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+
+            const i = Math.min(
+              Math.floor(Math.log(bytes) / Math.log(k)),
+              sizes.length - 1
+            );
+
+            sizeText = parseFloat(
+              (bytes / Math.pow(k, i)).toFixed(2)
+            ) + ' ' + sizes[i];
+          }
+
+          document.getElementById('statSize').textContent = sizeText;
 
           document.getElementById('statDate').textContent = new Date(fileData.createdAt).toLocaleDateString();
 
@@ -479,6 +495,11 @@
         }
       } catch (e) {
         console.error('获取数据失败', e);
+
+        showFatalError(
+          '加载失败',
+          e.message || '获取视频信息失败，请刷新页面重试。'
+        );
       }
 
       async function pollTask(taskId) {

@@ -744,7 +744,54 @@ table.data-table tr:last-child td { border-bottom: none; }
     --section-gap: 64px;
     --card-padding: 24px;
   }
-  .site-header nav { display: none; }
+
+  .site-header .container {
+    gap: 10px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .site-header .brand {
+    gap: 6px;
+  }
+
+  .site-header .brand-logo {
+    width: 30px;
+    height: 30px;
+  }
+
+  .site-header .brand span {
+    font-size: 16px;
+  }
+
+  .site-header nav {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    gap: 12px;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+
+  .site-header nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .site-header nav a {
+    flex-shrink: 0;
+    font-size: 12px;
+  }
+
+  .site-header .header-right {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .site-header #logoutBtn {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
 }
 
 /* ---------- 减少动态效果 ---------- */
