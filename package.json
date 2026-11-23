@@ -1,6 +1,6 @@
 {
   "name": "XIGEMBiliREC",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "XIGEMBiliREC 切片层后端",
   "main": "server.js",
   "scripts": {

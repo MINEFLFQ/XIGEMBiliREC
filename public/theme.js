@@ -1,6 +1,5 @@
 // ============================================================
-// 主题切换 + 页眉/页脚注入 + 通用 UI 工具
-// 依赖：style.css
+// XIGEMBiliREC STYLE JS
 // ============================================================
 
 (function () {
@@ -73,12 +72,12 @@
     // 基础导航
     const links = [
       { href: BASE, label: '主页' },
-      { href: BASE + 'list.html', label: '录屏列表' }
+      { href: BASE + 'list', label: '录屏列表' }
     ];
     
     // 动态追加管理员
     if (isAdmin) {
-      links.push({ href: BASE + 'admin.html', label: '管理员' });
+      links.push({ href: BASE + 'admin', label: '管理员' });
     }
 
     el.outerHTML = `
@@ -124,7 +123,7 @@
     el.outerHTML = `
       <footer class="site-footer">
         <div class="container">
-          <p>XIGEMBiliREC · Beta 0.1.2</p>
+          <p>XIGEMBiliREC · Beta 0.3.0rc1</p>
         </div>
       </footer>
     `;

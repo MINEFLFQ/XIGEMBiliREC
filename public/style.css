@@ -1,8 +1,8 @@
 /* ============================================================
-   XIGEMBiliREC 双主题样式（最终精修版）
+   XIGEMBiliREC STYLE CSS 0.3.0rc1
    ============================================================ */
 
-/* ---------- 共享尺度（两主题一致）---------- */
+/* ---------- 共享尺度 ---------- */
 :root {
   --page-max-width: 1080px;
   --section-gap: 96px;
@@ -97,7 +97,7 @@
   --surface-raised: var(--color-glass-fill);
   --surface-sunken: var(--color-night-steel);
 
-  /* 统一透明边框，防止切换时布局位移 */
+  /* 统一透明边框 */
   --border-width: 1px;
   --border-color: transparent;
 
@@ -300,7 +300,7 @@ button,
   transform: translateY(1px);
 }
 
-/* 主按钮（胶囊） */
+/* 主胶囊按钮 */
 .btn-primary {
   border-radius: var(--radius-pills) !important;
   padding: 11px 27px !important;

@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>录屏与切片 · XIGEMBiliREC</title>
+  <title>录屏切片列表 · XIGEMBiliREC</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -313,7 +313,7 @@
           }
 
           const playBtn = canPlay
-            ? `<a href="/video.html?file=${encodeURIComponent(item.fileId)}" class="btn btn-primary" style="padding: 6px 16px; font-size: 12px;">播放/切片</a>`
+            ? `<a href="/video?file=${encodeURIComponent(item.fileId)}" class="btn btn-primary" style="padding: 6px 16px; font-size: 12px;">播放/切片</a>`
             : `<button class="btn" disabled style="padding: 6px 16px; font-size: 12px;">请稍候</button>`;
 
           const deleteBtn = (isAdmin && isDeleteMode)
