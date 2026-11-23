@@ -60,7 +60,7 @@
   --surface-raised: rgba(255, 255, 255, 0.55);
   --surface-sunken: var(--color-base);
 
-  /* 统一透明边框，防止切换时布局位移 */
+  /* 统一透明边框 */
   --border-width: 1px;
   --border-color: transparent;
 
