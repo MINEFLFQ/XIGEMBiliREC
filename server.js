@@ -1,5 +1,5 @@
 // ============================================================
-// XIGEMBiliREC Beta_0.2.4al1
+// XIGEMBiliREC Beta_0.2.4al2
 // 依赖：express, axios
 // 启动：node server.js
 // ============================================================
@@ -3057,6 +3057,9 @@ function buildApp(serverCfg, roomsData) {
       });
     }
 
+    // 关闭录制开关，防止尚未完成的启动请求继续执行
+    room.enabled = false;
+
     // 停止正在进行的录制
     stopRecording(room.id);
 
@@ -4200,7 +4203,7 @@ async function getAdminOverview(serverCfg, roomsData) {
     const recDir = path.resolve(
       ROOT,
       serverCfg.paths.recordings,
-      String(room.roomId)
+      String(room.id)
     );
 
     const recordingFiles = await listRecordingFiles(recDir)
@@ -4554,6 +4557,9 @@ async function terminalCommand(line, serverCfg, roomsData) {
 
       const room = roomsData.rooms[index];
 
+      // 关闭录制开关，防止尚未完成的启动请求继续执行
+      room.enabled = false;
+
       // 停止正在进行的录制
       stopRecording(room.id);
 
@@ -4825,7 +4831,18 @@ function startTerminal(serverCfg, roomsData) {
 
   terminal.prompt();
 
-  terminal.on('line', async line => {
+    terminal.on('line', async line => {
+    // 防止本地终端与网页终端同时执行命令
+    if (terminalCommandRunning || webTerminalCommandRunning) {
+      console.log('[终端] 当前已有命令正在执行，请稍后再试。');
+
+      if (!isShuttingDown && terminal) {
+        terminal.prompt();
+      }
+
+      return;
+    }
+
     terminalCommandRunning = true;
 
     try {
