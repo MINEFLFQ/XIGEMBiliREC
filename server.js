@@ -2743,6 +2743,39 @@ function buildApp(serverCfg, roomsData) {
     });
   });
 
+    // ---------- 管理员统计信息 ----------
+  router.get('/api/admin/overview', async (req, res) => {
+    // 必须通过管理员密码验证
+    if (!req.session.adminAuthenticated) {
+      return res.status(403).json({
+        ok: false,
+        error: '需要管理员验证'
+      });
+    }
+
+    try {
+      const overview = await getAdminOverview(
+        serverCfg,
+        roomsData
+      );
+
+      res.json({
+        ok: true,
+        ...overview
+      });
+    } catch (e) {
+      log(
+        'ERROR',
+        `[admin] 获取统计信息失败：${e.message}`
+      );
+
+      res.status(500).json({
+        ok: false,
+        error: '获取统计信息失败'
+      });
+    }
+  });
+
   // ---------- 用户修改密码 ----------
   router.post('/api/password', (req, res) => {
     if (req.session.username === '#admin#') {
@@ -3250,7 +3283,11 @@ function showHelp() {
   room add <房间号>              添加房间号
   room delete <房间号>           删除房间号
   room rec <房间号/昵称> <true/false>  房间开始/停止录制（支持1/0）
-  room list <房间号/昵称>         显示该房间直播和录制状态
+  room stop                       停止所有房间录制
+  room list <房间号/昵称>         显示指定房间直播和录制状态
+
+  list user                       列出所有用户及切片数量
+  list room                       列出所有房间及录制状态
 `);
 }
 
@@ -3280,6 +3317,133 @@ function findRoomByIdentifier(roomsData, identifier) {
   return roomsData.rooms.find(
     r => String(r.nick || '').trim().toLowerCase() === value.toLowerCase()
   );
+}
+
+// ---------- 管理员统计 ----------
+async function getUserClipCount(serverCfg, userId) {
+  const dir = path.resolve(
+    ROOT,
+    serverCfg.paths.tempvideo,
+    userId
+  );
+
+  const files = await fsp.readdir(dir).catch(() => []);
+  let count = 0;
+
+  for (const fileName of files) {
+    if (!fileName.endsWith('.mp4')) continue;
+    if (!isClipFileName(fileName)) continue;
+
+    const fp = path.join(dir, fileName);
+    const st = await fsp.stat(fp).catch(() => null);
+
+    if (st && st.isFile()) {
+      count++;
+    }
+  }
+
+  return count;
+}
+
+// 获取管理员页面需要的用户和房间统计信息
+async function getAdminOverview(serverCfg, roomsData) {
+  const runtime = loadRuntime();
+
+  // ---------- 用户统计 ----------
+  const users = await Promise.all(
+    runtime.users.map(async user => ({
+      username: user.username,
+      clipCount: await getUserClipCount(
+        serverCfg,
+        user.username
+      )
+    }))
+  );
+
+  // ---------- 房间统计 ----------
+  const rooms = [];
+
+  let enabledRoomCount = 0;
+  let liveRoomCount = 0;
+  let recordingRoomCount = 0;
+
+  for (const room of roomsData.rooms) {
+    // 获取直播状态
+    let liveStatus = '未知';
+
+    try {
+      const info = await biliRoomInfo(
+        room.roomId,
+        serverCfg.recorder.headers
+      );
+
+      if (info.live_status === 1) {
+        liveStatus = '直播中';
+        liveRoomCount++;
+      } else {
+        liveStatus = '未直播';
+      }
+    } catch (e) {
+      log(
+        'WARN',
+        `[admin] 获取房间直播状态失败 ${room.roomId}: ${e.message}`
+      );
+    }
+
+    // 录制开关
+    const recordEnabled = !!room.enabled;
+
+    if (recordEnabled) {
+      enabledRoomCount++;
+    }
+
+    // 检查 FFmpeg 进程是否仍然运行
+    const rec = recordingProcs.get(room.id);
+
+    const processAlive = !!rec &&
+      !!rec.proc &&
+      rec.proc.exitCode === null &&
+      rec.proc.signalCode === null;
+
+    let recordStatus = '未在录制';
+
+    if (recordEnabled && processAlive) {
+      recordStatus = '正在录制';
+      recordingRoomCount++;
+    } else if (!recordEnabled && processAlive) {
+      recordStatus = '正在停止';
+    }
+
+    // 获取已有原始录制视频数量
+    const recDir = path.resolve(
+      ROOT,
+      serverCfg.paths.recordings,
+      String(room.roomId)
+    );
+
+    const recordingFiles = await listRecordingFiles(recDir)
+      .catch(() => []);
+
+    rooms.push({
+      nick: room.nick || '未知主播',
+      roomId: room.roomId,
+      liveStatus,
+      recordEnabled,
+      recordStatus,
+      videoCount: recordingFiles.length
+    });
+  }
+
+  return {
+    userCount: users.length,
+    users,
+
+    roomCount: rooms.length,
+    enabledRoomCount,
+    liveRoomCount,
+    recordingRoomCount,
+    rooms
+  };
 }
 
 async function terminalCommand(line, serverCfg, roomsData) {
@@ -3503,6 +3667,51 @@ async function terminalCommand(line, serverCfg, roomsData) {
   // ==========================================================
 
   if (command === 'room') {
+    // ---------- room stop ----------
+    if (action === 'stop') {
+      if (roomsData.rooms.length === 0) {
+        console.log('[房间] 当前没有已添加的房间。');
+        return;
+      }
+
+      let stoppedCount = 0;
+      let enabledCount = 0;
+
+      for (const room of roomsData.rooms) {
+        if (room.enabled) {
+          enabledCount++;
+        }
+
+        // 关闭录制开关
+        room.enabled = false;
+
+        // 使之前安排的重试任务失效
+        retryTokens.set(
+          room.id,
+          (retryTokens.get(room.id) || 0) + 1
+        );
+
+        // 停止录制，同时使未完成的启动请求失效
+        const stopped = stopRecording(room.id);
+
+        if (stopped) {
+          stoppedCount++;
+        }
+
+        roomStates.set(room.id, 'idle');
+        crashCounters.delete(room.id);
+      }
+
+      // 一次性保存所有房间的录制开关状态
+      saveRooms(roomsData);
+
+      console.log('[房间] 已关闭所有房间的录制开关。');
+      console.log(`[房间] 原先开启录制：${enabledCount}`);
+      console.log(`[房间] 已发送停止指令：${stoppedCount}`);
+
+      return;
+    }
+
     const action = args[1];
 
     // ---------- room add ----------
@@ -3723,7 +3932,15 @@ async function terminalCommand(line, serverCfg, roomsData) {
           serverCfg.recorder.headers
         );
 
-        const recording = recordingProcs.has(room.id);
+        const rec = recordingProcs.get(room.id);
+
+        const processAlive = !!rec &&
+          !!rec.proc &&
+          rec.proc.exitCode === null &&
+          rec.proc.signalCode === null;
+
+        const recording = room.enabled && processAlive;
+        const stopping = !room.enabled && processAlive;
 
         const state = roomStates.get(room.id) || 'idle';
 
@@ -3738,13 +3955,17 @@ async function terminalCommand(line, serverCfg, roomsData) {
           `录制开关：${room.enabled ? '已启用' : '已关闭'}`
         );
         console.log(
-          `录制状态：${recording ? '正在录制' : '未录制'}`
+          `录制状态：${
+            recording
+              ? '正在录制'
+              : stopping
+                ? '正在停止'
+                : '未录制'
+          }`
         );
         console.log(`内部状态：${state}`);
 
-        if (recording) {
-          const rec = recordingProcs.get(room.id);
-
+        if (recording || stopping) {
           console.log(`录制文件：${rec.fileName}`);
           console.log(
             `开始时间：${new Date(rec.startTime).toLocaleString()}`
@@ -3763,6 +3984,78 @@ async function terminalCommand(line, serverCfg, roomsData) {
     return;
   }
 
+    // ==========================================================
+  // 统计列表
+  // ==========================================================
+
+  if (command === 'list') {
+    const action = args[1]?.toLowerCase();
+
+    // ---------- list user ----------
+    if (action === 'user') {
+      try {
+        const overview = await getAdminOverview(
+          serverCfg,
+          roomsData
+        );
+
+        console.log('\n========== 用户列表 ==========');
+        console.log(`用户数量：${overview.userCount}`);
+
+        for (const user of overview.users) {
+          console.log(
+            `${user.username}  ${user.clipCount}`
+          );
+        }
+
+        console.log('================================');
+      } catch (e) {
+        console.log(`[错误] 获取用户列表失败：${e.message}`);
+      }
+
+      return;
+    }
+
+    // ---------- list room ----------
+    if (action === 'room') {
+      try {
+        const overview = await getAdminOverview(
+          serverCfg,
+          roomsData
+        );
+
+        console.log('\n========== 房间列表 ==========');
+
+        console.log(
+          `已有房间：${overview.roomCount}` +
+          ` | 开启录制：${overview.enabledRoomCount}` +
+          ` | 正在直播：${overview.liveRoomCount}` +
+          ` | 正在录制：${overview.recordingRoomCount}`
+        );
+
+        for (const room of overview.rooms) {
+          console.log(
+            `${room.nick} ` +
+            `${room.roomId} ` +
+            `${room.liveStatus} ` +
+            `${room.recordEnabled ? '开启录制' : '关闭录制'} ` +
+            `${room.recordStatus} ` +
+            `${room.videoCount}`
+          );
+        }
+
+        console.log('================================');
+      } catch (e) {
+        console.log(`[错误] 获取房间列表失败：${e.message}`);
+      }
+
+      return;
+    }
+
+    console.log('[错误] 用法：list user 或 list room');
+    return;
+  }
+  
   console.log(`[错误] 未知命令：${command}`);
   console.log('输入 help 查看可用命令。');
 }
