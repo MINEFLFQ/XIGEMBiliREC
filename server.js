@@ -179,6 +179,12 @@ function findRecordingFile(roomDir, fileId) {
 let logStream = null;
 let logStreamErrored = false;
 
+// ---------- 网页终端输出 ----------
+const terminalOutputClients = new Set();
+const terminalOutputHistory = [];
+
+let webTerminalCapture = false;
+
 function initLog() {
   ensureDir(LOG_DIR);
 
@@ -194,6 +200,11 @@ function initLog() {
 
 function log(level, ...args) {
   const line = `[${new Date().toISOString()}] [${level}] ${args.join(' ')}`;
+
+  // 网页终端未捕获命令输出时，主动推送服务器日志
+  if (!webTerminalCapture) {
+    publishTerminalOutput(line);
+  }
 
   terminalPrint(line);
 
@@ -2486,6 +2497,20 @@ function buildApp(serverCfg, roomsData) {
   const basePath = normalizeBasePath(serverCfg.server.basePath);
   const router = express.Router();
 
+  // ---------- 管理员权限检查 ----------
+  function requireAdmin(req, res) {
+    if (!req.session?.adminAuthenticated) {
+      res.status(403).json({
+        ok: false,
+        error: '需要管理员验证'
+      });
+
+      return false;
+    }
+
+    return true;
+  }
+
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
 
@@ -2745,13 +2770,7 @@ function buildApp(serverCfg, roomsData) {
 
     // ---------- 管理员统计信息 ----------
   router.get('/api/admin/overview', async (req, res) => {
-    // 必须通过管理员密码验证
-    if (!req.session.adminAuthenticated) {
-      return res.status(403).json({
-        ok: false,
-        error: '需要管理员验证'
-      });
-    }
+    if (!requireAdmin(req, res)) return;
 
     try {
       const overview = await getAdminOverview(
@@ -2772,6 +2791,696 @@ function buildApp(serverCfg, roomsData) {
       res.status(500).json({
         ok: false,
         error: '获取统计信息失败'
+      });
+    }
+  });
+
+    // ==========================================================
+  // 管理员网页终端
+  // ==========================================================
+
+  // ---------- 网页终端实时输出 ----------
+  router.get('/api/admin/terminal/stream', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    res.flushHeaders();
+
+    // 发送最近的终端输出
+    for (const text of terminalOutputHistory) {
+      res.write(`data: ${JSON.stringify({ text })}\n\n`);
+    }
+
+    // 注册当前网页连接
+    terminalOutputClients.add(res);
+
+    // 定时发送心跳，保持连接
+    const heartbeat = setInterval(() => {
+      res.write(': ping\n\n');
+    }, 25000);
+
+    if (heartbeat.unref) {
+      heartbeat.unref();
+    }
+
+    // 浏览器断开时清理连接
+    res.on('close', () => {
+      clearInterval(heartbeat);
+      terminalOutputClients.delete(res);
+    });
+  });
+
+  // ---------- 网页终端执行命令 ----------
+  router.post('/api/admin/terminal/command', async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+
+    const command = String(req.body?.command || '').trim();
+
+    if (!command) {
+      return res.status(400).json({
+        ok: false,
+        error: '请输入终端命令'
+      });
+    }
+
+    if (
+      command.length > 500 ||
+      command.includes('\n') ||
+      command.includes('\r')
+    ) {
+      return res.status(400).json({
+        ok: false,
+        error: '命令长度或格式不正确'
+      });
+    }
+
+    const commandName = command.split(/\s+/)[0].toLowerCase();
+
+    // 禁止网页端直接关闭或重置服务
+    if (
+      commandName === 'exit' ||
+      commandName === 'reinitialize'
+    ) {
+      return res.status(403).json({
+        ok: false,
+        error: '该命令只能在服务器本地终端执行'
+      });
+    }
+
+    // 防止多个命令同时修改服务状态
+    if (terminalCommandRunning || webTerminalCommandRunning) {
+      return res.status(409).json({
+        ok: false,
+        error: '当前已有终端命令正在执行，请稍后再试'
+      });
+    }
+
+    webTerminalCommandRunning = true;
+    terminalCommandRunning = true;
+    webTerminalCapture = true;
+
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+
+    // 捕获终端命令输出并推送给网页
+    const captureOutput = (...args) => {
+      const text = args.map(value => {
+        if (typeof value === 'string') {
+          return value;
+        }
+
+        try {
+          return JSON.stringify(value);
+        } catch (e) {
+          return String(value);
+        }
+      }).join(' ');
+
+      publishTerminalOutput(text);
+      originalLog(...args);
+    };
+
+    console.log = captureOutput;
+    console.error = captureOutput;
+    console.warn = captureOutput;
+
+    try {
+      await terminalCommand(
+        command,
+        serverCfg,
+        roomsData
+      );
+
+      res.json({
+        ok: true
+      });
+
+    } catch (e) {
+      const errorMessage = `[终端] 命令执行失败：${e.message}`;
+
+      publishTerminalOutput(errorMessage);
+
+      originalError(errorMessage);
+
+      res.status(500).json({
+        ok: false,
+        error: e.message || '命令执行失败'
+      });
+
+    } finally {
+      // 恢复原始控制台输出函数
+      console.log = originalLog;
+      console.error = originalError;
+      console.warn = originalWarn;
+
+      webTerminalCapture = false;
+      terminalCommandRunning = false;
+      webTerminalCommandRunning = false;
+    }
+  });
+
+    // ==========================================================
+  // 管理员房间管理
+  // ==========================================================
+
+  // ---------- 添加房间 ----------
+  router.post('/api/admin/rooms', async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+
+    const roomNumber = String(req.body?.roomId || '').trim();
+
+    if (!/^\d+$/.test(roomNumber)) {
+      return res.status(400).json({
+        ok: false,
+        error: '请输入正确的直播间房间号'
+      });
+    }
+
+    if (findRoom(roomsData, roomNumber)) {
+      return res.status(409).json({
+        ok: false,
+        error: '该房间已经添加'
+      });
+    }
+
+    try {
+      // 获取直播间信息
+      const info = await biliRoomInfo(
+        roomNumber,
+        serverCfg.recorder.headers
+      );
+
+      const realRoomId = String(info.room_id || roomNumber);
+
+      if (findRoom(roomsData, realRoomId)) {
+        return res.status(409).json({
+          ok: false,
+          error: '该直播间已经添加'
+        });
+      }
+
+      // 获取主播昵称
+      let nick = '';
+
+      try {
+        nick = await biliAnchorNick(
+          info.uid,
+          serverCfg.recorder.headers
+        );
+      } catch (e) {
+        log(
+          'WARN',
+          `[admin] 获取主播昵称失败 ${realRoomId}: ${e.message}`
+        );
+      }
+
+      const room = {
+        nick,
+        id: realRoomId,
+        roomId: Number(realRoomId),
+        name: info.title || `直播间 ${realRoomId}`,
+        quality: 10000,
+        enabled: false
+      };
+
+      roomsData.rooms.push(room);
+      saveRooms(roomsData);
+
+      roomStates.set(room.id, 'idle');
+
+      log(
+        'INFO',
+        `[admin] 添加房间成功：${room.nick || '未知主播'} (${room.roomId})`
+      );
+
+      res.json({
+        ok: true,
+        room: {
+          nick: room.nick,
+          roomId: room.roomId,
+          name: room.name,
+          enabled: room.enabled
+        }
+      });
+
+    } catch (e) {
+      log(
+        'ERROR',
+        `[admin] 添加房间失败 ${roomNumber}: ${e.message}`
+      );
+
+      res.status(500).json({
+        ok: false,
+        error: `添加房间失败：${e.message}`
+      });
+    }
+  });
+
+  // ---------- 删除房间 ----------
+  router.delete('/api/admin/rooms/:roomId', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+
+    const room = findRoom(
+      roomsData,
+      req.params.roomId
+    );
+
+    if (!room) {
+      return res.status(404).json({
+        ok: false,
+        error: '房间不存在'
+      });
+    }
+
+    // 停止正在进行的录制
+    stopRecording(room.id);
+
+    // 取消之前安排的重试
+    retryTokens.set(
+      room.id,
+      (retryTokens.get(room.id) || 0) + 1
+    );
+
+    roomStates.set(room.id, 'idle');
+    crashCounters.delete(room.id);
+
+    // 从房间列表中删除
+    const index = roomsData.rooms.indexOf(room);
+
+    if (index !== -1) {
+      roomsData.rooms.splice(index, 1);
+    }
+
+    saveRooms(roomsData);
+
+    log(
+      'INFO',
+      `[admin] 已删除房间：${room.nick || '未知主播'} (${room.roomId})`
+    );
+
+    res.json({
+      ok: true,
+      message: '房间已删除'
+    });
+  });
+
+  // ---------- 开启 / 关闭指定房间录制 ----------
+  router.post('/api/admin/rooms/:roomId/recording', async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+
+    const room = findRoom(
+      roomsData,
+      req.params.roomId
+    );
+
+    if (!room) {
+      return res.status(404).json({
+        ok: false,
+        error: '房间不存在'
+      });
+    }
+
+    const enabled = req.body?.enabled;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({
+        ok: false,
+        error: 'enabled 必须是布尔值'
+      });
+    }
+
+    // 修改录制开关
+    room.enabled = enabled;
+    saveRooms(roomsData);
+
+    // 使之前的重试任务失效
+    retryTokens.set(
+      room.id,
+      (retryTokens.get(room.id) || 0) + 1
+    );
+
+    if (enabled) {
+      log(
+        'INFO',
+        `[admin] ${room.nick || '未知主播'} (${room.roomId}) 已开启录制`
+      );
+
+      // 如果已经在录制，不重复启动
+      if (recordingProcs.has(room.id)) {
+        return res.json({
+          ok: true,
+          enabled: true,
+          message: '房间已经在录制'
+        });
+      }
+
+      roomStates.set(room.id, 'idle');
+
+      try {
+        // 检查直播状态
+        const info = await biliRoomInfo(
+          room.roomId,
+          serverCfg.recorder.headers
+        );
+
+        if (info.live_status === 1) {
+          await startRecording(room, serverCfg);
+        }
+
+        res.json({
+          ok: true,
+          enabled: true,
+          live: info.live_status === 1,
+          message: info.live_status === 1
+            ? '已开启录制，正在启动录制任务'
+            : '已开启录制，等待主播开播'
+        });
+
+      } catch (e) {
+        log(
+          'ERROR',
+          `[admin] 检查房间直播状态失败 ${room.roomId}: ${e.message}`
+        );
+
+        res.status(502).json({
+          ok: false,
+          enabled: true,
+          error: `录制开关已开启，但检查直播状态失败：${e.message}`
+        });
+      }
+
+    } else {
+      // 关闭录制并停止当前任务
+      const stopped = stopRecording(room.id);
+
+      roomStates.set(room.id, 'idle');
+      crashCounters.delete(room.id);
+
+      log(
+        'INFO',
+        `[admin] ${room.nick || '未知主播'} (${room.roomId}) 已关闭录制`
+      );
+
+      res.json({
+        ok: true,
+        enabled: false,
+        stopped,
+        message: stopped
+          ? '已发送停止录制指令'
+          : '房间当前没有正在进行的录制'
+      });
+    }
+  });
+
+  // ---------- 一键停止所有录制 ----------
+  router.post('/api/admin/rooms/stop-all', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+
+    try {
+      const result = stopAllRecordings(roomsData);
+
+      log(
+        'INFO',
+        `[admin] 已停止所有录制：房间 ${result.roomCount}，原先开启 ${result.enabledCount}，已发送停止指令 ${result.stoppedCount}`
+      );
+
+      res.json({
+        ok: true,
+        ...result,
+        message: '已关闭所有房间的录制'
+      });
+
+    } catch (e) {
+      log(
+        'ERROR',
+        `[admin] 停止所有录制失败：${e.message}`
+      );
+
+      res.status(500).json({
+        ok: false,
+        error: `停止所有录制失败：${e.message}`
+      });
+    }
+  });
+
+    // ==========================================================
+  // 管理员用户管理
+  // ==========================================================
+
+  // ---------- 获取用户列表 ----------
+  router.get('/api/admin/users', async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+
+    try {
+      const runtime = loadRuntime();
+
+      const users = await Promise.all(
+        runtime.users.map(async user => ({
+          username: user.username,
+          role: user.role || 'user',
+          clipCount: await getUserClipCount(
+            serverCfg,
+            user.username
+          )
+        }))
+      );
+
+      res.json({
+        ok: true,
+        userCount: users.length,
+        users
+      });
+
+    } catch (e) {
+      log(
+        'ERROR',
+        `[admin] 获取用户列表失败：${e.message}`
+      );
+
+      res.status(500).json({
+        ok: false,
+        error: '获取用户列表失败'
+      });
+    }
+  });
+
+  // ---------- 添加用户 ----------
+  router.post('/api/admin/users', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+
+    const { username, password } = req.body || {};
+
+    if (
+      typeof username !== 'string' ||
+      typeof password !== 'string' ||
+      !username ||
+      !password
+    ) {
+      return res.status(400).json({
+        ok: false,
+        error: '用户名和密码不能为空'
+      });
+    }
+
+    if (!safeName(username) || username === '#admin#') {
+      return res.status(400).json({
+        ok: false,
+        error: '用户名只能包含英文字母、数字、下划线和连字符'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        ok: false,
+        error: '密码至少需要 6 位'
+      });
+    }
+
+    try {
+      const runtime = loadRuntime();
+
+      if (!Array.isArray(runtime.users)) {
+        runtime.users = [];
+      }
+
+      if (
+        runtime.users.some(user => user.username === username)
+      ) {
+        return res.status(409).json({
+          ok: false,
+          error: '用户已经存在'
+        });
+      }
+
+      runtime.users.push({
+        username,
+        passwordHash: hashPassword(password),
+        role: 'user'
+      });
+
+      saveRuntime(runtime);
+
+      log(
+        'INFO',
+        `[admin] 已添加用户：${username}`
+      );
+
+      res.json({
+        ok: true,
+        message: '用户添加成功'
+      });
+
+    } catch (e) {
+      log(
+        'ERROR',
+        `[admin] 添加用户失败 ${username}: ${e.message}`
+      );
+
+      res.status(500).json({
+        ok: false,
+        error: '添加用户失败'
+      });
+    }
+  });
+
+  // ---------- 重置用户密码 ----------
+  router.put('/api/admin/users/:username/password', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+
+    const username = req.params.username;
+    const password = req.body?.password;
+
+    if (!safeName(username) || username === '#admin#') {
+      return res.status(400).json({
+        ok: false,
+        error: '用户名不正确'
+      });
+    }
+
+    if (
+      typeof password !== 'string' ||
+      password.length < 6
+    ) {
+      return res.status(400).json({
+        ok: false,
+        error: '密码至少需要 6 位'
+      });
+    }
+
+    try {
+      const runtime = loadRuntime();
+
+      const user = runtime.users.find(
+        item => item.username === username
+      );
+
+      if (!user) {
+        return res.status(404).json({
+          ok: false,
+          error: '用户不存在'
+        });
+      }
+
+      user.passwordHash = hashPassword(password);
+
+      saveRuntime(runtime);
+
+      // 密码变更后，注销该用户的所有会话
+      for (const [sid, session] of Object.entries(sessions)) {
+        if (session.username === username) {
+          delete sessions[sid];
+        }
+      }
+
+      saveSessions();
+
+      log(
+        'INFO',
+        `[admin] 已重置用户密码：${username}`
+      );
+
+      res.json({
+        ok: true,
+        message: '密码重置成功'
+      });
+
+    } catch (e) {
+      log(
+        'ERROR',
+        `[admin] 重置用户密码失败 ${username}: ${e.message}`
+      );
+
+      res.status(500).json({
+        ok: false,
+        error: '重置用户密码失败'
+      });
+    }
+  });
+
+  // ---------- 删除用户 ----------
+  router.delete('/api/admin/users/:username', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+
+    const username = req.params.username;
+
+    if (!safeName(username) || username === '#admin#') {
+      return res.status(400).json({
+        ok: false,
+        error: '用户名不正确'
+      });
+    }
+
+    try {
+      const runtime = loadRuntime();
+
+      const index = runtime.users.findIndex(
+        user => user.username === username
+      );
+
+      if (index === -1) {
+        return res.status(404).json({
+          ok: false,
+          error: '用户不存在'
+        });
+      }
+
+      runtime.users.splice(index, 1);
+
+      saveRuntime(runtime);
+
+      // 删除该用户的所有登录会话
+      for (const [sid, session] of Object.entries(sessions)) {
+        if (session.username === username) {
+          delete sessions[sid];
+        }
+      }
+
+      saveSessions();
+
+      log(
+        'INFO',
+        `[admin] 已删除用户：${username}`
+      );
+
+      res.json({
+        ok: true,
+        message: '用户已删除'
+      });
+
+    } catch (e) {
+      log(
+        'ERROR',
+        `[admin] 删除用户失败 ${username}: ${e.message}`
+      );
+
+      res.status(500).json({
+        ok: false,
+        error: '删除用户失败'
       });
     }
   });
@@ -3227,6 +3936,35 @@ let terminal = null;
 // 标记是否正在执行终端命令
 let terminalCommandRunning = false;
 
+// 标记是否正在执行网页终端命令
+let webTerminalCommandRunning = false;
+
+// 将终端输出推送到所有网页终端连接
+function publishTerminalOutput(value) {
+  const text = String(value ?? '');
+
+  if (!text) return;
+
+  // 保存最近 500 条输出，供新连接的网页终端读取
+  terminalOutputHistory.push(text);
+
+  if (terminalOutputHistory.length > 500) {
+    terminalOutputHistory.shift();
+  }
+
+  const message = `data: ${JSON.stringify({
+    text
+  })}\n\n`;
+
+  for (const client of terminalOutputClients) {
+    try {
+      client.write(message);
+    } catch (e) {
+      terminalOutputClients.delete(client);
+    }
+  }
+}
+
 // 输出服务器日志，同时保持终端提示符正常显示
 function terminalPrint(...args) {
   const canRedraw =
@@ -3317,6 +4055,50 @@ function findRoomByIdentifier(roomsData, identifier) {
   return roomsData.rooms.find(
     r => String(r.nick || '').trim().toLowerCase() === value.toLowerCase()
   );
+}
+
+// ---------- 停止所有房间录制 ----------
+function stopAllRecordings(roomsData) {
+  const rooms = roomsData.rooms || [];
+
+  let stoppedCount = 0;
+  let enabledCount = 0;
+
+  for (const room of rooms) {
+    if (room.enabled) {
+      enabledCount++;
+    }
+
+    // 关闭录制开关
+    room.enabled = false;
+
+    // 使之前安排的重试任务失效
+    retryTokens.set(
+      room.id,
+      (retryTokens.get(room.id) || 0) + 1
+    );
+
+    // 停止录制，同时使未完成的启动请求失效
+    const stopped = stopRecording(room.id);
+
+    if (stopped) {
+      stoppedCount++;
+    }
+
+    roomStates.set(room.id, 'idle');
+    crashCounters.delete(room.id);
+  }
+
+  // 一次性保存所有房间的录制开关状态
+  if (rooms.length > 0) {
+    saveRooms(roomsData);
+  }
+
+  return {
+    roomCount: rooms.length,
+    enabledCount,
+    stoppedCount
+  };
 }
 
 // ---------- 管理员统计 ----------
@@ -3666,53 +4448,24 @@ async function terminalCommand(line, serverCfg, roomsData) {
   // 直播间管理
   // ==========================================================
 
-  if (command === 'room') {
+    if (command === 'room') {
+    const action = args[1]?.toLowerCase();
+
     // ---------- room stop ----------
     if (action === 'stop') {
-      if (roomsData.rooms.length === 0) {
+      const result = stopAllRecordings(roomsData);
+
+      if (result.roomCount === 0) {
         console.log('[房间] 当前没有已添加的房间。');
         return;
       }
 
-      let stoppedCount = 0;
-      let enabledCount = 0;
-
-      for (const room of roomsData.rooms) {
-        if (room.enabled) {
-          enabledCount++;
-        }
-
-        // 关闭录制开关
-        room.enabled = false;
-
-        // 使之前安排的重试任务失效
-        retryTokens.set(
-          room.id,
-          (retryTokens.get(room.id) || 0) + 1
-        );
-
-        // 停止录制，同时使未完成的启动请求失效
-        const stopped = stopRecording(room.id);
-
-        if (stopped) {
-          stoppedCount++;
-        }
-
-        roomStates.set(room.id, 'idle');
-        crashCounters.delete(room.id);
-      }
-
-      // 一次性保存所有房间的录制开关状态
-      saveRooms(roomsData);
-
       console.log('[房间] 已关闭所有房间的录制开关。');
-      console.log(`[房间] 原先开启录制：${enabledCount}`);
-      console.log(`[房间] 已发送停止指令：${stoppedCount}`);
+      console.log(`[房间] 原先开启录制：${result.enabledCount}`);
+      console.log(`[房间] 已发送停止指令：${result.stoppedCount}`);
 
       return;
     }
-
-    const action = args[1];
 
     // ---------- room add ----------
     if (action === 'add') {
