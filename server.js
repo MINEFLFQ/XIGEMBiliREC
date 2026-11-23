@@ -1,5 +1,5 @@
 // ============================================================
-// XIGEMBiliREC Beta_0.2.4al2
+// XIGEMBiliREC Beta_0.2.4al3
 // 依赖：express, axios
 // 启动：node server.js
 // ============================================================
@@ -2582,22 +2582,20 @@ function buildApp(serverCfg, roomsData) {
       });
     }
 
-    let sid = req.cookies?.sid;
-    let session = sid ? getSession(sid) : null;
+    // 管理员验证成功后，统一创建管理员 Session
+    const oldSid = req.cookies?.sid;
 
-    if (!session) {
-      sid = createSession('#admin#', 'admin', true);
-
-      res.cookie('sid', sid, {
-        httpOnly: true,
-        sameSite: 'lax',
-        maxAge: 7 * 86400000
-      });
-    } else {
-      session.adminAuthenticated = true;
-      session.adminAuthenticatedAt = Date.now();
-      saveSessions();
+    if (oldSid) {
+      destroySession(oldSid);
     }
+
+    const sid = createSession('#admin#', 'admin', true);
+
+    res.cookie('sid', sid, {
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 7 * 86400000
+    });
 
     res.json({ ok: true });
   });
@@ -2820,6 +2818,15 @@ function buildApp(serverCfg, roomsData) {
 
     // 定时发送心跳，保持连接
     const heartbeat = setInterval(() => {
+      const session = getSessionFromReq(req);
+
+      if (!session?.adminAuthenticated) {
+        clearInterval(heartbeat);
+        terminalOutputClients.delete(res);
+        res.end();
+        return;
+      }
+
       res.write(': ping\n\n');
     }, 25000);
 
@@ -4753,21 +4760,29 @@ async function terminalCommand(line, serverCfg, roomsData) {
     // ---------- list user ----------
     if (action === 'user') {
       try {
-        const overview = await getAdminOverview(
-          serverCfg,
-          roomsData
+        const runtime = loadRuntime();
+
+        const users = await Promise.all(
+          runtime.users.map(async user => ({
+            username: user.username,
+            clipCount: await getUserClipCount(
+              serverCfg,
+              user.username
+            )
+          }))
         );
 
         console.log('\n========== 用户列表 ==========');
-        console.log(`用户数量：${overview.userCount}`);
+        console.log(`用户数量：${users.length}`);
 
-        for (const user of overview.users) {
+        for (const user of users) {
           console.log(
             `${user.username}  ${user.clipCount}`
           );
         }
 
         console.log('================================');
+
       } catch (e) {
         console.log(`[错误] 获取用户列表失败：${e.message}`);
       }
