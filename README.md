@@ -4,7 +4,7 @@
   <img src="public/logo.png" alt="XIGEMBiliREC Logo" width="200">
 </p>
 
-## Beta_0.2.1
+## Beta_0.2.2
 
 基于 Node.js、Express 和 FFmpeg 的 Bilibili 直播录制与视频切片服务。
 
@@ -14,6 +14,11 @@ XIGEMBiliREC 可以监控指定的 Bilibili 直播间，在主播开播时自动
 
 
 ---
+
+## 更新说明 (Beta_0.2.2)
+
+重做了video.html，新增了拖动条控制切片打入打出点的时间轴。
+微调了其他网页
 
 ## 更新说明 (Beta_0.2.1)
 

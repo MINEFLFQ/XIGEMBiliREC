@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN" data-theme="light">
 <head>
@@ -8,13 +9,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  
+
   <!-- 防闪烁：在渲染前尽早设置主题 -->
   <script>
     document.documentElement.setAttribute('data-theme', (function(){
-      try { 
-        var t = localStorage.getItem('xigem-theme'); 
-        return t === 'dark' ? 'dark' : 'light'; 
+      try {
+        var t = localStorage.getItem('xigem-theme');
+        return t === 'dark' ? 'dark' : 'light';
       } catch(e) { return 'light'; }
     })());
   </script>
@@ -27,6 +28,7 @@
       text-overflow: ellipsis;
       display: block;
     }
+
     /* 表格行悬浮高亮 */
     .data-table tbody tr {
       transition: background var(--transition-fast);
@@ -37,12 +39,14 @@
     [data-theme="dark"] .data-table tbody tr:hover {
       background: rgba(255, 255, 255, 0.05);
     }
+
     /* 操作列按钮间距 */
     .action-btns {
       display: flex;
       gap: 8px;
       justify-content: flex-end;
     }
+
     /* 标签页样式 */
     .tabs {
       display: flex;
@@ -50,33 +54,84 @@
       margin-bottom: 24px;
       border-bottom: 1px solid var(--border-color);
     }
-    .tab-btn {
+
+    /* 标签按钮：覆盖全局按钮样式 */
+    .tabs .tab-btn,
+    .tabs .tab-btn:hover,
+    .tabs .tab-btn:focus,
+    .tabs .tab-btn:focus-visible,
+    .tabs .tab-btn:active {
+      appearance: none !important;
       background: transparent !important;
+      background-color: transparent !important;
+      border-top: none !important;
+      border-left: none !important;
+      border-right: none !important;
+      outline: none !important;
       box-shadow: none !important;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+      transform: none !important;
       border-radius: 0 !important;
+    }
+
+    .tabs .tab-btn {
       border-bottom: 2px solid transparent !important;
       padding: 12px 16px !important;
-      color: var(--color-text-muted);
+      color: var(--color-text-muted) !important;
       font-size: var(--text-body-lg);
+      font-weight: var(--font-weight-medium);
       cursor: pointer;
-      transition: all var(--transition-fast);
+      transition: color var(--transition-fast), border-color var(--transition-fast);
+      text-decoration: none !important;
     }
-    .tab-btn:hover {
-      color: var(--color-text);
+
+    .tabs .tab-btn:hover {
+      color: var(--color-text) !important;
     }
-    .tab-btn.active {
+
+    .tabs .tab-btn.active {
       color: var(--color-blurple) !important;
       border-bottom-color: var(--color-blurple) !important;
       font-weight: var(--font-weight-semibold);
     }
-    [data-theme="dark"] .tab-btn.active {
+
+    [data-theme="dark"] .tabs .tab-btn.active {
       color: var(--color-champagne) !important;
       border-bottom-color: var(--color-champagne) !important;
     }
+
     /* 搜索框 */
     .search-bar {
       max-width: 300px;
       width: 100%;
+    }
+
+    /* 刷新按钮：与首页保持一致 */
+    .refresh-btn {
+      font-size: 20px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    /* 统一去掉所有 <a> 标签作为按钮时的下划线 */
+    a.btn, a.badge {
+      text-decoration: none !important;
+    }
+
+    /* 主播昵称链接样式 */
+    .anchor-badge {
+      text-decoration: none !important;
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    }
+    .anchor-badge:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-raised-hover) !important;
     }
   </style>
 </head>
@@ -85,14 +140,14 @@
 
   <main class="page-main">
     <div class="container">
-      
+
       <!-- 标题与工具栏 -->
       <div class="flex justify-between items-center mb-24" style="flex-wrap: wrap; gap:16px;">
         <div>
           <p class="label">Library</p>
           <h1 class="heading" style="margin:0;">媒体库</h1>
         </div>
-        
+
         <div class="flex gap-16 items-center" style="flex-wrap: wrap;">
           <!-- 仅管理员可见的删除模式开关 -->
           <div class="hidden flex items-center gap-8" id="adminTool">
@@ -101,20 +156,20 @@
               <span class="text-muted" style="font-size:var(--text-body);">开启原片删除</span>
             </label>
           </div>
-          <button class="btn" id="refreshBtn" type="button">刷新</button>
+          <button class="btn refresh-btn" id="refreshBtn" type="button" title="刷新数据">↻</button>
         </div>
       </div>
 
       <!-- 标签页切换 -->
       <div class="tabs">
-        <button class="btn tab-btn active" data-target="recordings">录屏原片</button>
-        <button class="btn tab-btn" data-target="clips">我的切片</button>
+        <button type="button" class="tab-btn active" data-target="recordings">录屏原片</button>
+        <button type="button" class="tab-btn" data-target="clips">我的切片</button>
       </div>
 
       <!-- 录屏列表视图 -->
       <div id="recordingsView">
         <div class="mb-16 flex justify-between items-center" style="flex-wrap: wrap; gap:16px;">
-          <input type="text" id="searchInput" class="search-bar" placeholder="搜索房间号或日期...">
+          <input type="text" id="searchInput" class="search-bar" placeholder="搜索主播昵称或房间号...">
         </div>
 
         <div class="card card-static" style="padding:0; overflow:hidden;">
@@ -122,7 +177,7 @@
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>房间号</th>
+                  <th>主播</th>
                   <th>文件标识 (File ID)</th>
                   <th>大小</th>
                   <th>录制时间</th>
@@ -176,7 +231,7 @@
       const tabBtns = document.querySelectorAll('.tab-btn');
       const recordingsView = document.getElementById('recordingsView');
       const clipsView = document.getElementById('clipsView');
-      
+
       let isAdmin = false;
       let isDeleteMode = false;
       let allRecordings = [];
@@ -222,10 +277,12 @@
         let filtered = allRecordings;
 
         if (keyword) {
-          filtered = allRecordings.filter(item => 
-            item.roomId.toLowerCase().includes(keyword) || 
-            item.fileId.toLowerCase().includes(keyword)
-          );
+          filtered = allRecordings.filter(item => {
+            const nick = item.nick || '';
+            return item.roomId.toLowerCase().includes(keyword) ||
+                   item.fileId.toLowerCase().includes(keyword) ||
+                   nick.toLowerCase().includes(keyword);
+          });
         }
 
         if (!filtered.length) {
@@ -233,18 +290,18 @@
           return;
         }
 
-        // 排序：最新的在最上面
         filtered.sort((a, b) => b.createdAt - a.createdAt);
 
         let html = '';
         for (const item of filtered) {
           const sizeStr = formatSize(item.size);
           const dateStr = new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false });
-          
+          const nick = item.nick || '未知主播';
+
           let badgeClass = 'badge-ready';
           let statusText = 'Ready';
           let canPlay = true;
-          
+
           if (item.status === 'recording') {
             badgeClass = 'badge-recording';
             statusText = 'Recording';
@@ -255,17 +312,22 @@
             canPlay = false;
           }
 
-          const playBtn = canPlay 
+          const playBtn = canPlay
             ? `<a href="/video.html?file=${encodeURIComponent(item.fileId)}" class="btn btn-primary" style="padding: 6px 16px; font-size: 12px;">播放/切片</a>`
             : `<button class="btn" disabled style="padding: 6px 16px; font-size: 12px;">请稍候</button>`;
 
-          const deleteBtn = (isAdmin && isDeleteMode) 
+          const deleteBtn = (isAdmin && isDeleteMode)
             ? `<button class="btn btn-danger btn-del" data-room="${item.roomId}" data-file="${item.fileId}" data-name="${item.fileName}" style="padding: 6px 16px; font-size: 12px;">删除</button>`
             : '';
 
+          // 把主播昵称做成 Badge，并且点击跳转直播间
           html += `
             <tr>
-              <td><strong>${item.roomId}</strong></td>
+              <td>
+                <a href="https://live.bilibili.com/${item.roomId}" target="_blank" class="badge badge-ready anchor-badge">
+                  ${nick}
+                </a>
+              </td>
               <td>
                 <span class="file-name" title="${item.fileName}">${item.fileName}</span>
               </td>
@@ -306,7 +368,6 @@
         for (const item of items) {
           const sizeStr = formatSize(item.size);
           const dateStr = new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false });
-          // 下载链接自带签名，直接加在前端即可
           const downloadUrl = XIGEM.BASE + item.downloadUrl.replace(/^\//, '');
 
           html += `
@@ -401,11 +462,18 @@
 
       // 9. 事件绑定
       refreshBtn.addEventListener('click', () => {
-        if (currentTab === 'recordings') {
-          loadRecordings();
-        } else {
-          loadClips();
-        }
+        refreshBtn.textContent = '↻';
+        refreshBtn.style.animation = 'spin 0.8s linear infinite';
+
+        const refreshTask = currentTab === 'recordings'
+          ? loadRecordings()
+          : loadClips();
+
+        refreshTask.finally(() => {
+          setTimeout(() => {
+            refreshBtn.style.animation = 'none';
+          }, 500);
+        });
       });
 
       searchInput.addEventListener('input', () => {
@@ -421,7 +489,7 @@
         btn.addEventListener('click', () => {
           tabBtns.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
-          
+
           currentTab = btn.getAttribute('data-target');
           if (currentTab === 'recordings') {
             recordingsView.classList.remove('hidden');

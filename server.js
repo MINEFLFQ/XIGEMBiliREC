@@ -1,5 +1,5 @@
 // ============================================================
-// XIGEMBiliREC Beta_0.2.1
+// XIGEMBiliREC Beta_0.2.2
 // 依赖：express, axios
 // 启动：node server.js
 // ============================================================
@@ -2823,8 +2823,13 @@ function buildApp(serverCfg, roomsData) {
           status = 'transcoding';
         }
 
+        // 查找这个房间对应的昵称
+        const room = roomsData.rooms.find(r => String(r.roomId) === String(roomId));
+        const nick = room ? room.nick : '';
+
         list.push({
           roomId,
+          nick,
           fileId: f.fileId,
           fileName: f.fileName,
           size: st2.size,
