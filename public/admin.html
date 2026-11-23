@@ -1,55 +1,80 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>管理员控制台 · XIGEMBiliREC</title>
-  
-  <!-- 修复资源路径，统一用绝对路径 -->
+
   <link rel="stylesheet" href="/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  
+
   <!-- 防闪烁：在渲染前尽早设置主题 -->
   <script>
-    document.documentElement.setAttribute('data-theme', (function(){
-      try { 
-        var t = localStorage.getItem('xigem-theme'); 
-        return t === 'dark' ? 'dark' : 'light'; 
-      } catch(e) { return 'light'; }
+    document.documentElement.setAttribute('data-theme', (function() {
+      try {
+        var t = localStorage.getItem('xigem-theme');
+        return t === 'dark' ? 'dark' : 'light';
+      } catch (e) {
+        return 'light';
+      }
     })());
   </script>
+
   <style>
-    /* 验证框布局 */
+    /* ---------- 登录验证 ---------- */
+
     .auth-card {
       max-width: 400px;
       margin: 80px auto;
       text-align: center;
       padding: 40px;
     }
+
     .auth-card .heading {
       margin-bottom: 8px;
     }
-    
-    /* 控制台功能区卡片 */
-    .admin-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 24px;
+
+    /* ---------- 通用布局 ---------- */
+
+    .admin-section {
       margin-top: 32px;
     }
+
+    .admin-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .admin-section-header h2 {
+      margin: 0;
+      font-size: var(--text-subheading);
+      font-weight: var(--font-weight-semibold);
+    }
+
+    .admin-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
     .admin-card {
       padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
     }
+
     .admin-card h3 {
       margin: 0;
       font-size: var(--text-subheading);
       font-weight: var(--font-weight-semibold);
     }
+
     .admin-card p {
       margin: 0;
       color: var(--color-text-muted);
@@ -57,7 +82,152 @@
       line-height: 1.6;
     }
 
-    /* 危险区域 */
+    /* ---------- 统计卡片 ---------- */
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .stat-card {
+      padding: 20px;
+    }
+
+    .stat-label {
+      color: var(--color-text-muted);
+      font-size: var(--text-body);
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: var(--font-weight-semibold);
+      line-height: 1.2;
+    }
+
+    /* ---------- 标签页 ---------- */
+
+    .tabs {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .tabs .tab-btn,
+    .tabs .tab-btn:hover,
+    .tabs .tab-btn:focus,
+    .tabs .tab-btn:focus-visible,
+    .tabs .tab-btn:active {
+      appearance: none !important;
+      background: transparent !important;
+      background-color: transparent !important;
+      border-top: none !important;
+      border-left: none !important;
+      border-right: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+      transform: none !important;
+      border-radius: 0 !important;
+    }
+
+    .tabs .tab-btn {
+      border-bottom: 2px solid transparent !important;
+      padding: 12px 16px !important;
+      color: var(--color-text-muted) !important;
+      font-size: var(--text-body-lg);
+      font-weight: var(--font-weight-medium);
+      cursor: pointer;
+      transition: color var(--transition-fast), border-color var(--transition-fast);
+      text-decoration: none !important;
+    }
+
+    .tabs .tab-btn:hover {
+      color: var(--color-text) !important;
+    }
+
+    .tabs .tab-btn.active {
+      color: var(--color-blurple) !important;
+      border-bottom-color: var(--color-blurple) !important;
+      font-weight: var(--font-weight-semibold);
+    }
+
+    [data-theme="dark"] .tabs .tab-btn.active {
+      color: var(--color-champagne) !important;
+      border-bottom-color: var(--color-champagne) !important;
+    }
+
+    /* ---------- 表格 ---------- */
+
+    .data-table tbody tr {
+      transition: background var(--transition-fast);
+    }
+
+    [data-theme="light"] .data-table tbody tr:hover {
+      background: rgba(255, 255, 255, 0.4);
+    }
+
+    [data-theme="dark"] .data-table tbody tr:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .action-btns {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .action-btns .btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .table-name {
+      font-weight: var(--font-weight-medium);
+      white-space: nowrap;
+    }
+
+    .table-sub {
+      display: block;
+      color: var(--color-text-muted);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .table-message {
+      text-align: center;
+      padding: 36px 16px !important;
+      color: var(--color-text-muted);
+    }
+
+    /* ---------- 搜索框 ---------- */
+
+    .search-bar {
+      max-width: 300px;
+      width: 100%;
+    }
+
+    /* ---------- 刷新按钮 ---------- */
+
+    .refresh-btn {
+      font-size: 20px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    /* ---------- 危险区域 ---------- */
+
     .danger-zone {
       border: 1px solid rgba(255, 107, 107, 0.4);
       border-radius: var(--radius-cards);
@@ -65,217 +235,1582 @@
       background: rgba(255, 107, 107, 0.05);
       margin-top: 32px;
     }
+
     .danger-zone h3 {
       color: var(--color-coral);
       margin-top: 0;
       margin-bottom: 8px;
       font-size: var(--text-subheading);
     }
+
     .danger-zone p {
       color: var(--color-text-muted);
       font-size: var(--text-body);
       margin-bottom: 16px;
     }
 
-    /* 终端命令代码块 */
+    /* ---------- 终端 ---------- */
+
+    .terminal-card {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      flex-wrap: wrap;
+    }
+
+    .terminal-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: var(--font-weight-semibold);
+    }
+
+    .terminal-status {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--color-text-muted);
+      font-size: 12px;
+    }
+
+    .terminal-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #999;
+    }
+
+    .terminal-dot.connected {
+      background: #36b37e;
+      box-shadow: 0 0 8px rgba(54, 179, 126, 0.5);
+    }
+
+    .terminal-output {
+      height: 340px;
+      overflow-y: auto;
+      padding: 16px 20px;
+      background: #17191f;
+      color: #d5d9e2;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .terminal-line {
+      min-height: 1.65em;
+    }
+
+    .terminal-input-area {
+      display: flex;
+      gap: 10px;
+      padding: 14px;
+      background: var(--surface-sunken);
+      border-top: 1px solid var(--border-color);
+    }
+
+    .terminal-input {
+      flex: 1;
+      min-width: 0;
+      font-family: Consolas, Monaco, monospace;
+    }
+
+    .terminal-hint {
+      padding: 0 16px 14px;
+      color: var(--color-text-muted);
+      font-size: 12px;
+      background: var(--surface-sunken);
+    }
+
+    /* ---------- 命令帮助 ---------- */
+
+    .command-help {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .command-help code {
+      cursor: pointer;
+      background: var(--surface-sunken);
+      padding: 5px 9px;
+      border-radius: 6px;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 12px;
+      color: var(--color-blurple);
+    }
+
+    [data-theme="dark"] .command-help code {
+      color: var(--color-champagne);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* ---------- 通用代码 ---------- */
+
     code {
       background: var(--surface-sunken);
       padding: 2px 6px;
       border-radius: 4px;
-      font-family: monospace;
+      font-family: Consolas, Monaco, monospace;
       color: var(--color-blurple);
       font-size: 13px;
     }
+
     [data-theme="dark"] code {
       color: var(--color-champagne);
       background: rgba(255, 255, 255, 0.1);
     }
+
+    /* ---------- 移动端 ---------- */
+
+    @media (max-width: 600px) {
+      .terminal-output {
+        height: 280px;
+        font-size: 12px;
+        padding: 12px;
+      }
+
+      .terminal-input-area {
+        padding: 10px;
+      }
+
+      .admin-card {
+        padding: 16px;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .stat-card {
+        padding: 16px;
+      }
+
+      .stat-value {
+        font-size: 24px;
+      }
+    }
   </style>
 </head>
+
 <body>
   <div data-include="header"></div>
 
   <main class="page-main">
     <div class="container">
 
-      <!-- 未验证状态：输入密码 -->
+      <!-- ---------- 登录验证 ---------- -->
+
       <div id="authSection" class="hidden">
         <div class="card card-static auth-card">
           <h2 class="heading">安全验证</h2>
           <p class="text-muted mb-24">此操作需要管理员权限，请输入密码</p>
-          
+
           <form id="authForm">
-            <div class="form-group" style="text-align: left;">
-              <input type="password" id="adminPassword" placeholder="输入管理员密码" required>
+            <div class="form-group" style="text-align:left;">
+              <input
+                type="password"
+                id="adminPassword"
+                placeholder="输入管理员密码"
+                autocomplete="current-password"
+                required
+              >
             </div>
-            <button type="submit" class="btn btn-primary w-full mt-16" id="btnAuth">解锁控制台</button>
+
+            <button
+              type="submit"
+              class="btn btn-primary w-full mt-16"
+              id="btnAuth"
+            >
+              解锁控制台
+            </button>
           </form>
         </div>
       </div>
 
-      <!-- 已验证状态：控制台主体 -->
+      <!-- ---------- 管理员主体 ---------- -->
+
       <div id="dashboardSection" class="hidden">
-        <div class="flex justify-between items-center" style="flex-wrap: wrap; gap:16px;">
+
+        <!-- 页面标题 -->
+
+        <div class="flex justify-between items-center" style="flex-wrap:wrap; gap:16px;">
           <div>
             <p class="label">Admin Console</p>
             <h1 class="heading" style="margin:0;">管理员控制台</h1>
           </div>
-          <div>
+
+          <div class="admin-toolbar">
             <a href="/list.html" class="btn">前往媒体库</a>
+            <button type="button" class="btn refresh-btn" id="refreshBtn" title="刷新数据">↻</button>
           </div>
         </div>
 
-        <!-- 功能网格 -->
-        <div class="admin-grid">
-          
-          <!-- 用户管理卡片 -->
-          <div class="card card-static admin-card">
-            <h3>用户管理</h3>
-            <p>当前后端为保证安全，未开放 HTTP 接口用于增删用户。请直接在服务器终端操作：</p>
-            <div style="background: var(--surface-sunken); padding: 12px; border-radius: var(--radius-inputs); margin-bottom: 8px;">
-              <div style="margin-bottom: 8px;"><code>user list</code> 查看所有用户</div>
-              <div style="margin-bottom: 8px;"><code>user set &lt;账号&gt; &lt;密码&gt;</code> 添加/重置密码</div>
-              <div><code>user delete &lt;账号&gt;</code> 删除用户</div>
+        <!-- ---------- 系统统计 ---------- -->
+
+        <div class="stats-grid">
+
+          <div class="card card-static stat-card">
+            <div class="stat-label">房间总数</div>
+            <div class="stat-value" id="statRoomCount">--</div>
+          </div>
+
+          <div class="card card-static stat-card">
+            <div class="stat-label">开启录制</div>
+            <div class="stat-value" id="statEnabledCount">--</div>
+          </div>
+
+          <div class="card card-static stat-card">
+            <div class="stat-label">直播中</div>
+            <div class="stat-value" id="statLiveCount">--</div>
+          </div>
+
+          <div class="card card-static stat-card">
+            <div class="stat-label">正在录制</div>
+            <div class="stat-value" id="statRecordingCount">--</div>
+          </div>
+
+          <div class="card card-static stat-card">
+            <div class="stat-label">用户总数</div>
+            <div class="stat-value" id="statUserCount">--</div>
+          </div>
+
+        </div>
+
+        <!-- ---------- 网页终端 ---------- -->
+
+        <section class="admin-section">
+
+          <div class="admin-section-header">
+            <div>
+              <p class="label">Web Terminal</p>
+              <h2>网页终端</h2>
             </div>
           </div>
 
-          <!-- 系统信息卡片 -->
-          <div class="card card-static admin-card">
-            <h3>系统状态</h3>
-            <p>服务当前运行正常。如果是首次部署，请务必注意以下安全建议：</p>
-            <ul style="color: var(--color-text-muted); font-size: var(--text-body); padding-left: 20px; line-height: 1.8;">
-              <li>请确保管理员密码已修改（终端 <code>admin password</code>）</li>
-              <li>检查 <code>server.json</code> 中的存储路径及总容量限制</li>
-              <li>如需更换监听端口或地址，需重启服务</li>
-            </ul>
+          <div class="card card-static terminal-card">
+
+            <div class="terminal-header">
+              <div class="terminal-title">
+                <span>⌘</span>
+                <span>Server Console</span>
+              </div>
+
+              <div class="terminal-status">
+                <span class="terminal-dot" id="terminalDot"></span>
+                <span id="terminalStatus">正在连接...</span>
+              </div>
+            </div>
+
+            <div
+              class="terminal-output"
+              id="terminalOutput"
+              aria-live="polite"
+            ><div class="terminal-line">XIGEMBiliREC Web Terminal</div><div class="terminal-line">正在连接服务器...</div></div>
+
+            <form class="terminal-input-area" id="terminalForm">
+              <input
+                type="text"
+                class="terminal-input"
+                id="terminalInput"
+                placeholder="输入命令，例如 help"
+                autocomplete="off"
+                spellcheck="false"
+              >
+
+              <button
+                type="submit"
+                class="btn btn-primary"
+                id="terminalSend"
+              >
+                执行
+              </button>
+            </form>
+
+            <div class="terminal-hint">
+              Enter 执行命令。网页端禁止执行 <code>exit</code> 和 <code>reinitialize</code>。
+              <div class="command-help">
+                <code data-command="help">help</code>
+                <code data-command="room list">list room</code>
+                <code data-command="list user">list user</code>
+                <code data-command="room stop">room stop</code>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ---------- 房间与用户 ---------- -->
+
+        <section class="admin-section">
+
+          <div class="admin-section-header">
+            <div>
+              <p class="label">Management</p>
+              <h2>管理中心</h2>
+            </div>
           </div>
 
-        </div>
+          <!-- 标签页 -->
 
-        <!-- 危险区域 -->
+          <div class="tabs">
+            <button
+              type="button"
+              class="tab-btn active"
+              data-target="rooms"
+            >房间</button>
+
+            <button
+              type="button"
+              class="tab-btn"
+              data-target="users"
+            >用户</button>
+          </div>
+
+          <!-- ---------- 房间列表 ---------- -->
+
+          <div id="roomsView">
+
+            <div class="admin-section-header">
+
+              <div class="admin-toolbar">
+                <input
+                  type="text"
+                  class="search-bar"
+                  id="roomSearch"
+                  placeholder="搜索主播昵称或房间号..."
+                >
+              </div>
+
+              <div class="admin-toolbar">
+                <button type="button" class="btn btn-primary" id="btnAddRoom">
+                  + 添加房间
+                </button>
+              </div>
+
+            </div>
+
+            <div class="card card-static" style="padding:0; overflow:hidden;">
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>主播</th>
+                      <th>房间号</th>
+                      <th>直播状态</th>
+                      <th>录制状态</th>
+                      <th>原片数量</th>
+                      <th style="text-align:right;">操作</th>
+                    </tr>
+                  </thead>
+
+                  <tbody id="roomsBody">
+                    <tr>
+                      <td colspan="6" class="table-message">正在获取房间列表...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ---------- 用户列表 ---------- -->
+
+          <div id="usersView" class="hidden">
+
+            <div class="admin-section-header">
+
+              <div class="admin-toolbar">
+                <input
+                  type="text"
+                  class="search-bar"
+                  id="userSearch"
+                  placeholder="搜索用户名..."
+                >
+              </div>
+
+              <div class="admin-toolbar">
+                <button type="button" class="btn btn-primary" id="btnAddUser">
+                  + 添加用户
+                </button>
+              </div>
+
+            </div>
+
+            <div class="card card-static" style="padding:0; overflow:hidden;">
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>用户名</th>
+                      <th>角色</th>
+                      <th>关联房间</th>
+                      <th>切片数量</th>
+                      <th style="text-align:right;">操作</th>
+                    </tr>
+                  </thead>
+
+                  <tbody id="usersBody">
+                    <tr>
+                      <td colspan="5" class="table-message">正在获取用户列表...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <p class="text-muted" style="font-size:12px; margin-top:12px; line-height:1.6;">
+              注：当前后端没有保存用户与直播间的归属关系，因此这里暂时无法显示用户关联的具体房间。
+            </p>
+
+          </div>
+
+        </section>
+
+        <!-- ---------- 危险区域 ---------- -->
+
         <div class="danger-zone">
+
           <h3>⚠️ 危险区域</h3>
-          <p>以下操作可能会对数据造成不可逆的破坏，请谨慎执行。</p>
-          <div class="flex gap-16" style="flex-wrap: wrap;">
-            <button class="btn btn-danger" id="btnQuickDelete">强制删除指定原片</button>
+
+          <p>
+            以下操作可能会对数据造成不可逆的破坏，请谨慎执行。
+          </p>
+
+          <div class="flex gap-16" style="flex-wrap:wrap;">
+
+            <button
+              type="button"
+              class="btn btn-danger"
+              id="btnStopAll"
+            >
+              停止所有录制
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-danger"
+              id="btnQuickDelete"
+            >
+              强制删除指定原片
+            </button>
+
           </div>
+
         </div>
 
       </div>
-
     </div>
   </main>
 
   <div data-include="footer"></div>
+
   <script src="/theme.js"></script>
 
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
+
+      // ==========================================================
+      // DOM
+      // ==========================================================
+
       const authSection = document.getElementById('authSection');
       const dashboardSection = document.getElementById('dashboardSection');
+
       const authForm = document.getElementById('authForm');
       const btnAuth = document.getElementById('btnAuth');
       const adminPassword = document.getElementById('adminPassword');
 
-      // 1. 检查初始状态
+      const refreshBtn = document.getElementById('refreshBtn');
+
+      const roomsBody = document.getElementById('roomsBody');
+      const usersBody = document.getElementById('usersBody');
+
+      const roomSearch = document.getElementById('roomSearch');
+      const userSearch = document.getElementById('userSearch');
+
+      const roomsView = document.getElementById('roomsView');
+      const usersView = document.getElementById('usersView');
+
+      const tabBtns = document.querySelectorAll('.tab-btn');
+
+      const terminalOutput = document.getElementById('terminalOutput');
+      const terminalForm = document.getElementById('terminalForm');
+      const terminalInput = document.getElementById('terminalInput');
+      const terminalSend = document.getElementById('terminalSend');
+
+      const terminalDot = document.getElementById('terminalDot');
+      const terminalStatus = document.getElementById('terminalStatus');
+
+      // ==========================================================
+      // 状态
+      // ==========================================================
+
+      let allRooms = [];
+      let allUsers = [];
+
+      let currentTab = 'rooms';
+
+      let terminalSource = null;
+      let terminalConnected = false;
+      let terminalSending = false;
+
+      let roomsLoaded = false;
+      let usersLoaded = false;
+
+      // ==========================================================
+      // 通用工具
+      // ==========================================================
+
+      function escapeHtml(value) {
+        return XIGEM.escapeHtml(value == null ? '' : String(value));
+      }
+
+      function formatNumber(value) {
+        const n = Number(value);
+        return Number.isFinite(n) ? n.toLocaleString('zh-CN') : '0';
+      }
+
+      function setTableMessage(tbody, colspan, message) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="${colspan}" class="table-message">
+              ${escapeHtml(message)}
+            </td>
+          </tr>
+        `;
+      }
+
+      function setTerminalStatus(connected, text) {
+        terminalConnected = connected;
+
+        terminalDot.classList.toggle('connected', connected);
+        terminalStatus.textContent = text;
+      }
+
+      function appendTerminal(text) {
+        const line = document.createElement('div');
+        line.className = 'terminal-line';
+        line.textContent = String(text);
+
+        terminalOutput.appendChild(line);
+
+        // 限制前端保留的输出行数
+        while (terminalOutput.children.length > 1000) {
+          terminalOutput.removeChild(terminalOutput.firstChild);
+        }
+
+        terminalOutput.scrollTop = terminalOutput.scrollHeight;
+      }
+
+      function setButtonLoading(button, loading, text) {
+        if (loading) {
+          button.dataset.originalText = button.textContent;
+          button.disabled = true;
+          button.textContent = text || '处理中...';
+        } else {
+          button.disabled = false;
+          button.textContent = button.dataset.originalText || button.textContent;
+          delete button.dataset.originalText;
+        }
+      }
+
+      function formatBadge(text, type) {
+        return `<span class="badge ${type}">${escapeHtml(text)}</span>`;
+      }
+
+      // ==========================================================
+      // 登录验证
+      // ==========================================================
+
       async function checkAuth() {
         try {
           const me = await XIGEM.api('/api/me');
-          // 后端判定：登录账号是 #admin#，且 adminAuthenticated 为 true
+
           if (me.username === '#admin#' && me.adminAuthenticated) {
             showDashboard();
           } else {
             authSection.classList.remove('hidden');
             dashboardSection.classList.add('hidden');
           }
+
         } catch (e) {
-          // 未登录时会被 /api/me 拒绝，直接跳回登录页
-          window.location.href = '/login.html';
+          window.location.href = '/login';
         }
       }
 
-      // 2. 显示控制台
       function showDashboard() {
         authSection.classList.add('hidden');
         dashboardSection.classList.remove('hidden');
+
+        initializeDashboard();
       }
 
-      // 3. 提交密码验证
-      authForm.addEventListener('submit', async (e) => {
+      authForm.addEventListener('submit', async e => {
         e.preventDefault();
-        const pwd = adminPassword.value.trim();
-        if (!pwd) return;
 
-        btnAuth.disabled = true;
-        btnAuth.textContent = '验证中...';
+        const password = adminPassword.value;
+
+        if (!password) return;
+
+        setButtonLoading(btnAuth, true, '验证中...');
 
         try {
           await XIGEM.api('/api/admin/login', {
             method: 'POST',
-            body: JSON.stringify({ password: pwd })
+            body: JSON.stringify({
+              password
+            })
           });
-          XIGEM.toast('验证成功，已解锁控制台', 'success');
-          showDashboard();
+
           adminPassword.value = '';
+
+          XIGEM.toast('验证成功，已解锁控制台', 'success');
+
+          showDashboard();
+
         } catch (e) {
           XIGEM.toast(e.message || '密码错误', 'error');
-          btnAuth.disabled = false;
-          btnAuth.textContent = '解锁控制台';
+
+        } finally {
+          setButtonLoading(btnAuth, false);
         }
       });
 
-      // 4. 快速强制删除原片
-      document.getElementById('btnQuickDelete').addEventListener('click', () => {
-        XIGEM.openModal({
-          title: '强制删除原片',
+      // ==========================================================
+      // 系统统计
+      // ==========================================================
+
+      function renderOverview(data) {
+        document.getElementById('statRoomCount').textContent =
+          formatNumber(data.roomCount);
+
+        document.getElementById('statEnabledCount').textContent =
+          formatNumber(data.enabledRoomCount);
+
+        document.getElementById('statLiveCount').textContent =
+          formatNumber(data.liveRoomCount);
+
+        document.getElementById('statRecordingCount').textContent =
+          formatNumber(data.recordingRoomCount);
+
+        document.getElementById('statUserCount').textContent =
+          formatNumber(data.userCount);
+      }
+
+      async function loadOverview() {
+        try {
+          const data = await XIGEM.api('/api/admin/overview');
+
+          renderOverview(data);
+
+          allRooms = Array.isArray(data.rooms) ? data.rooms : [];
+
+          roomsLoaded = true;
+
+          renderRooms();
+
+        } catch (e) {
+          XIGEM.toast(e.message || '获取系统状态失败', 'error');
+        }
+      }
+
+      // ==========================================================
+      // 房间列表
+      // ==========================================================
+
+      function renderRooms() {
+        const keyword = roomSearch.value.trim().toLowerCase();
+
+        let filtered = allRooms;
+
+        if (keyword) {
+          filtered = allRooms.filter(room => {
+            const nick = String(room.nick || '').toLowerCase();
+            const roomId = String(room.roomId || '').toLowerCase();
+
+            return nick.includes(keyword) || roomId.includes(keyword);
+          });
+        }
+
+        if (!filtered.length) {
+          setTableMessage(
+            roomsBody,
+            6,
+            keyword ? '没有找到匹配的房间' : '当前还没有添加直播间'
+          );
+          return;
+        }
+
+        let html = '';
+
+        for (const room of filtered) {
+          const nick = room.nick || '未知主播';
+          const roomId = String(room.roomId || '');
+
+          const liveBadge = room.liveStatus === '直播中'
+            ? formatBadge('直播中', 'badge-recording')
+            : room.liveStatus === '未直播'
+              ? formatBadge('未直播', 'badge-ready')
+              : formatBadge('未知', 'badge-transcoding');
+
+          let recordBadge;
+
+          if (room.recordStatus === '正在录制') {
+            recordBadge = formatBadge('正在录制', 'badge-recording');
+          } else if (room.recordStatus === '正在停止') {
+            recordBadge = formatBadge('正在停止', 'badge-transcoding');
+          } else {
+            recordBadge = formatBadge(
+              room.recordEnabled ? '已开启 / 等待开播' : '已关闭',
+              room.recordEnabled ? 'badge-transcoding' : 'badge-ready'
+            );
+          }
+
+          const recordButton = room.recordEnabled
+            ? `
+              <button
+                type="button"
+                class="btn btn-danger"
+                data-action="toggle-room"
+                data-room-id="${escapeHtml(roomId)}"
+                data-enabled="false"
+              >停止</button>
+            `
+            : `
+              <button
+                type="button"
+                class="btn btn-primary"
+                data-action="toggle-room"
+                data-room-id="${escapeHtml(roomId)}"
+                data-enabled="true"
+              >开启</button>
+            `;
+
+          html += `
+            <tr>
+              <td>
+                <span class="table-name">${escapeHtml(nick)}</span>
+                <span class="table-sub">
+                  <a
+                    href="https://live.bilibili.com/${encodeURIComponent(roomId)}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style="color:var(--color-text-muted);"
+                  >打开直播间 ↗</a>
+                </span>
+              </td>
+
+              <td>${escapeHtml(roomId)}</td>
+
+              <td>${liveBadge}</td>
+
+              <td>${recordBadge}</td>
+
+              <td>${formatNumber(room.videoCount)}</td>
+
+              <td>
+                <div class="action-btns">
+                  ${recordButton}
+
+                  <button
+                    type="button"
+                    class="btn btn-danger"
+                    data-action="delete-room"
+                    data-room-id="${escapeHtml(roomId)}"
+                    data-room-name="${escapeHtml(nick)}"
+                  >删除</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }
+
+        roomsBody.innerHTML = html;
+      }
+
+      async function loadRooms() {
+        setTableMessage(roomsBody, 6, '正在获取房间列表...');
+
+        await loadOverview();
+      }
+
+      roomSearch.addEventListener('input', renderRooms);
+
+      // 房间操作：事件委托
+      roomsBody.addEventListener('click', async e => {
+        const button = e.target.closest('button[data-action]');
+
+        if (!button) return;
+
+        const action = button.dataset.action;
+        const roomId = button.dataset.roomId;
+
+        if (!roomId) return;
+
+        // 开启 / 关闭录制
+        if (action === 'toggle-room') {
+          const enabled = button.dataset.enabled === 'true';
+
+          const room = allRooms.find(
+            item => String(item.roomId) === roomId
+          );
+
+          const name = room?.nick || roomId;
+
+          if (enabled) {
+            const confirmed = window.confirm(
+              `确定要开启 ${name} (${roomId}) 的录制吗？`
+            );
+
+            if (!confirmed) return;
+          } else {
+            const confirmed = window.confirm(
+              `确定要关闭 ${name} (${roomId}) 的录制吗？`
+            );
+
+            if (!confirmed) return;
+          }
+
+          setButtonLoading(button, true, '处理中...');
+
+          try {
+            const result = await XIGEM.api(
+              `/api/admin/rooms/${encodeURIComponent(roomId)}/recording`,
+              {
+                method: 'POST',
+                body: JSON.stringify({
+                  enabled
+                })
+              }
+            );
+
+            XIGEM.toast(
+              result.message || (enabled ? '录制已开启' : '录制已关闭'),
+              'success'
+            );
+
+            await loadRooms();
+
+          } catch (e) {
+            XIGEM.toast(e.message || '房间操作失败', 'error');
+            setButtonLoading(button, false);
+          }
+
+          return;
+        }
+
+        // 删除房间
+        if (action === 'delete-room') {
+          const roomName = button.dataset.roomName || roomId;
+
+          const confirmed = window.confirm(
+            `确定要删除房间 ${roomName} (${roomId}) 吗？\n\n删除后将停止该房间的录制，并从房间列表中移除。已有录制文件不会因此自动删除。`
+          );
+
+          if (!confirmed) return;
+
+          setButtonLoading(button, true, '删除中...');
+
+          try {
+            await XIGEM.api(
+              `/api/admin/rooms/${encodeURIComponent(roomId)}`,
+              {
+                method: 'DELETE'
+              }
+            );
+
+            XIGEM.toast('房间已删除', 'success');
+
+            await loadRooms();
+
+          } catch (e) {
+            XIGEM.toast(e.message || '删除房间失败', 'error');
+            setButtonLoading(button, false);
+          }
+        }
+      });
+
+      // ==========================================================
+      // 添加房间
+      // ==========================================================
+
+      document.getElementById('btnAddRoom').addEventListener('click', () => {
+        let modalHandle;
+
+        modalHandle = XIGEM.openModal({
+          title: '添加直播间',
+
           content: `
             <p class="text-muted mb-16" style="font-size:13px; line-height:1.6;">
-              输入完整的文件标识（格式：<strong>房间号_日期_序号</strong>，例如 <code>2233_20261122_0</code>）。
-              <br><br>
-              <span style="color:var(--color-coral);">⚠️ 警告：此操作会绕过常规的前端校验，直接删除原片及其 HLS 预览，不可恢复！</span>
+              输入 Bilibili 直播间房间号。添加后默认关闭录制，需要手动开启。
             </p>
+
             <div class="form-group">
-              <label>File ID</label>
-              <input type="text" id="quickDeleteInput" placeholder="2233_20261122_0">
+              <label>直播间房间号</label>
+              <input
+                type="text"
+                id="addRoomId"
+                placeholder="例如：60989"
+                inputmode="numeric"
+              >
             </div>
           `,
-          confirmText: '确认删除',
+
+          confirmText: '添加房间',
           cancelText: '取消',
-          onConfirm: async (overlay) => {
-            const val = overlay.querySelector('#quickDeleteInput').value.trim();
-            if (!val) {
-              XIGEM.toast('请输入 File ID', 'error');
+
+          onConfirm: overlay => {
+            const roomId = overlay.querySelector('#addRoomId').value.trim();
+
+            if (!/^\d+$/.test(roomId)) {
+              XIGEM.toast('请输入正确的直播间房间号', 'error');
               return false;
             }
 
-            // 解析 roomId
-            const match = val.match(/^([a-zA-Z0-9_-]+)_(\d{8})_(\d+)$/);
-            if (!match) {
-              XIGEM.toast('File ID 格式不正确', 'error');
+            const confirmButton = overlay.querySelector('[data-modal-confirm]');
+
+            setButtonLoading(confirmButton, true, '添加中...');
+
+            (async () => {
+              try {
+                await XIGEM.api('/api/admin/rooms', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    roomId
+                  })
+                });
+
+                XIGEM.toast('房间添加成功', 'success');
+
+                modalHandle.close();
+
+                await loadRooms();
+
+              } catch (e) {
+                XIGEM.toast(e.message || '添加房间失败', 'error');
+                setButtonLoading(confirmButton, false);
+              }
+            })();
+
+            return false;
+          }
+        });
+      });
+
+      // ==========================================================
+      // 用户列表
+      // ==========================================================
+
+      function renderUsers() {
+        const keyword = userSearch.value.trim().toLowerCase();
+
+        let filtered = allUsers;
+
+        if (keyword) {
+          filtered = allUsers.filter(user =>
+            String(user.username || '').toLowerCase().includes(keyword)
+          );
+        }
+
+        if (!filtered.length) {
+          setTableMessage(
+            usersBody,
+            5,
+            keyword ? '没有找到匹配的用户' : '当前还没有用户'
+          );
+          return;
+        }
+
+        let html = '';
+
+        for (const user of filtered) {
+          const username = String(user.username || '');
+
+          const roleBadge = user.role === 'admin'
+            ? formatBadge('管理员', 'badge-transcoding')
+            : formatBadge('普通用户', 'badge-ready');
+
+          html += `
+            <tr>
+              <td>
+                <span class="table-name">${escapeHtml(username)}</span>
+              </td>
+
+              <td>${roleBadge}</td>
+
+              <td>
+                <span class="text-muted" style="font-size:12px;">
+                  暂无关联数据
+                </span>
+              </td>
+
+              <td>${formatNumber(user.clipCount)}</td>
+
+              <td>
+                <div class="action-btns">
+
+                  <button
+                    type="button"
+                    class="btn"
+                    data-action="reset-password"
+                    data-username="${escapeHtml(username)}"
+                  >重置密码</button>
+
+                  <button
+                    type="button"
+                    class="btn btn-danger"
+                    data-action="delete-user"
+                    data-username="${escapeHtml(username)}"
+                  >删除</button>
+
+                </div>
+              </td>
+            </tr>
+          `;
+        }
+
+        usersBody.innerHTML = html;
+      }
+
+      async function loadUsers() {
+        setTableMessage(usersBody, 5, '正在获取用户列表...');
+
+        try {
+          const data = await XIGEM.api('/api/admin/users');
+
+          allUsers = Array.isArray(data.users) ? data.users : [];
+
+          usersLoaded = true;
+
+          renderUsers();
+
+          document.getElementById('statUserCount').textContent =
+            formatNumber(data.userCount);
+
+        } catch (e) {
+          setTableMessage(usersBody, 5, '用户列表加载失败：' + e.message);
+          XIGEM.toast(e.message || '获取用户列表失败', 'error');
+        }
+      }
+
+      userSearch.addEventListener('input', renderUsers);
+
+      // 用户操作：事件委托
+      usersBody.addEventListener('click', async e => {
+        const button = e.target.closest('button[data-action]');
+
+        if (!button) return;
+
+        const action = button.dataset.action;
+        const username = button.dataset.username;
+
+        if (!username) return;
+
+        // 重置密码
+        if (action === 'reset-password') {
+          let modalHandle;
+
+          modalHandle = XIGEM.openModal({
+            title: `重置用户密码：${username}`,
+
+            content: `
+              <p class="text-muted mb-16" style="font-size:13px; line-height:1.6;">
+                新密码至少需要 6 位。修改成功后，该用户的现有登录会话将失效。
+              </p>
+
+              <div class="form-group">
+                <label>新密码</label>
+                <input
+                  type="password"
+                  id="resetUserPassword"
+                  placeholder="输入新密码"
+                  autocomplete="new-password"
+                >
+              </div>
+            `,
+
+            confirmText: '确认重置',
+            cancelText: '取消',
+
+            onConfirm: overlay => {
+              const password = overlay.querySelector('#resetUserPassword').value;
+
+              if (password.length < 6) {
+                XIGEM.toast('密码至少需要 6 位', 'error');
+                return false;
+              }
+
+              const confirmButton = overlay.querySelector('[data-modal-confirm]');
+
+              setButtonLoading(confirmButton, true, '重置中...');
+
+              (async () => {
+                try {
+                  await XIGEM.api(
+                    `/api/admin/users/${encodeURIComponent(username)}/password`,
+                    {
+                      method: 'PUT',
+                      body: JSON.stringify({
+                        password
+                      })
+                    }
+                  );
+
+                  XIGEM.toast('密码重置成功', 'success');
+
+                  modalHandle.close();
+
+                  await loadUsers();
+
+                } catch (e) {
+                  XIGEM.toast(e.message || '密码重置失败', 'error');
+                  setButtonLoading(confirmButton, false);
+                }
+              })();
+
               return false;
             }
-            const roomId = match[1];
+          });
 
-            const btn = overlay.querySelector('[data-modal-confirm]');
-            btn.textContent = '删除中...';
-            btn.disabled = true;
+          return;
+        }
 
-            try {
-              await XIGEM.api(`/api/admin/recordings/${roomId}/${val}`, { method: 'DELETE' });
-              XIGEM.toast('原片已彻底删除', 'success');
-              return true;
-            } catch (e) {
-              XIGEM.toast(e.message || '删除失败', 'error');
-              btn.textContent = '确认删除';
-              btn.disabled = false;
+        // 删除用户
+        if (action === 'delete-user') {
+          const confirmed = window.confirm(
+            `确定要删除用户 ${username} 吗？\n\n删除后，该用户将无法继续登录，现有登录会话也会失效。用户的切片文件不会因此自动删除。`
+          );
+
+          if (!confirmed) return;
+
+          setButtonLoading(button, true, '删除中...');
+
+          try {
+            await XIGEM.api(
+              `/api/admin/users/${encodeURIComponent(username)}`,
+              {
+                method: 'DELETE'
+              }
+            );
+
+            XIGEM.toast('用户已删除', 'success');
+
+            await loadUsers();
+
+          } catch (e) {
+            XIGEM.toast(e.message || '删除用户失败', 'error');
+            setButtonLoading(button, false);
+          }
+        }
+      });
+
+      // ==========================================================
+      // 添加用户
+      // ==========================================================
+
+      document.getElementById('btnAddUser').addEventListener('click', () => {
+        let modalHandle;
+
+        modalHandle = XIGEM.openModal({
+          title: '添加用户',
+
+          content: `
+            <div class="form-group">
+              <label>用户名</label>
+              <input
+                type="text"
+                id="addUsername"
+                placeholder="仅允许英文字母、数字、下划线和连字符"
+                autocomplete="off"
+              >
+            </div>
+
+            <div class="form-group mt-16">
+              <label>密码</label>
+              <input
+                type="password"
+                id="addUserPassword"
+                placeholder="至少 6 位"
+                autocomplete="new-password"
+              >
+            </div>
+          `,
+
+          confirmText: '创建用户',
+          cancelText: '取消',
+
+          onConfirm: overlay => {
+            const username = overlay.querySelector('#addUsername').value.trim();
+            const password = overlay.querySelector('#addUserPassword').value;
+
+            if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+              XIGEM.toast('用户名只能包含英文字母、数字、下划线和连字符', 'error');
               return false;
+            }
+
+            if (username === '#admin#') {
+              XIGEM.toast('不能使用保留用户名', 'error');
+              return false;
+            }
+
+            if (password.length < 6) {
+              XIGEM.toast('密码至少需要 6 位', 'error');
+              return false;
+            }
+
+            const confirmButton = overlay.querySelector('[data-modal-confirm]');
+
+            setButtonLoading(confirmButton, true, '创建中...');
+
+            (async () => {
+              try {
+                await XIGEM.api('/api/admin/users', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    username,
+                    password
+                  })
+                });
+
+                XIGEM.toast('用户创建成功', 'success');
+
+                modalHandle.close();
+
+                await loadUsers();
+
+              } catch (e) {
+                XIGEM.toast(e.message || '创建用户失败', 'error');
+                setButtonLoading(confirmButton, false);
+              }
+            })();
+
+            return false;
+          }
+        });
+      });
+
+      // ==========================================================
+      // 标签页切换
+      // ==========================================================
+
+      tabBtns.forEach(button => {
+        button.addEventListener('click', () => {
+          tabBtns.forEach(item => item.classList.remove('active'));
+
+          button.classList.add('active');
+
+          currentTab = button.dataset.target;
+
+          if (currentTab === 'rooms') {
+            roomsView.classList.remove('hidden');
+            usersView.classList.add('hidden');
+
+            if (!roomsLoaded) {
+              loadRooms();
+            }
+
+          } else {
+            roomsView.classList.add('hidden');
+            usersView.classList.remove('hidden');
+
+            if (!usersLoaded) {
+              loadUsers();
             }
           }
         });
       });
 
-      // 初始化执行
-      checkAuth();
+      // ==========================================================
+      // 刷新
+      // ==========================================================
+
+      refreshBtn.addEventListener('click', async () => {
+        refreshBtn.style.animation = 'spin 0.8s linear infinite';
+        refreshBtn.disabled = true;
+
+        try {
+          await loadOverview();
+
+          if (usersLoaded || currentTab === 'users') {
+            await loadUsers();
+          }
+
+          XIGEM.toast('数据已刷新', 'success');
+
+        } finally {
+          refreshBtn.style.animation = 'none';
+          refreshBtn.disabled = false;
+        }
+      });
+
+      // ==========================================================
+      // 一键停止所有录制
+      // ==========================================================
+
+      document.getElementById('btnStopAll').addEventListener('click', () => {
+        XIGEM.openModal({
+          title: '⚠️ 停止所有录制',
+
+          content: `
+            <p style="line-height:1.7;">
+              确定要停止所有房间的录制吗？
+            </p>
+
+            <p class="text-muted" style="font-size:13px; margin-top:10px; line-height:1.6;">
+              此操作将关闭全部房间的录制开关，停止正在进行的录制任务，并使之前安排的重试任务失效。
+              <br><br>
+              <strong style="color:var(--color-coral);">
+                不会删除已经录制完成的原片。
+              </strong>
+            </p>
+          `,
+
+          confirmText: '停止全部录制',
+          cancelText: '取消',
+
+          onConfirm: overlay => {
+            const confirmButton = overlay.querySelector('[data-modal-confirm]');
+
+            setButtonLoading(confirmButton, true, '正在停止...');
+
+            (async () => {
+              try {
+                const result = await XIGEM.api(
+                  '/api/admin/rooms/stop-all',
+                  {
+                    method: 'POST'
+                  }
+                );
+
+                XIGEM.toast(
+                  `已停止全部录制：${result.stoppedCount} 个任务`,
+                  'success'
+                );
+
+                overlay.remove();
+
+                await loadRooms();
+
+              } catch (e) {
+                XIGEM.toast(e.message || '停止全部录制失败', 'error');
+                setButtonLoading(confirmButton, false);
+              }
+            })();
+
+            return false;
+          }
+        });
+      });
+
+      // ==========================================================
+      // 网页终端：SSE 实时输出
+      // ==========================================================
+
+      function connectTerminal() {
+        if (terminalSource) {
+          terminalSource.close();
+          terminalSource = null;
+        }
+
+        setTerminalStatus(false, '正在连接...');
+
+        terminalSource = new EventSource(
+          '/api/admin/terminal/stream'
+        );
+
+        terminalSource.onopen = () => {
+          setTerminalStatus(true, '已连接');
+        };
+
+        terminalSource.onmessage = event => {
+          try {
+            const data = JSON.parse(event.data);
+
+            if (typeof data.text === 'string') {
+              appendTerminal(data.text);
+            }
+
+          } catch (e) {
+            appendTerminal(event.data);
+          }
+        };
+
+        terminalSource.onerror = () => {
+          setTerminalStatus(false, '连接中断，正在重连...');
+        };
+      }
+
+      // ==========================================================
+      // 网页终端：执行命令
+      // ==========================================================
+
+      async function sendTerminalCommand(command) {
+        command = String(command || '').trim();
+
+        if (!command || terminalSending) return;
+
+        terminalSending = true;
+
+        terminalInput.value = '';
+
+        appendTerminal(`> ${command}`);
+
+        terminalSend.disabled = true;
+        terminalInput.disabled = true;
+
+        try {
+          await XIGEM.api('/api/admin/terminal/command', {
+            method: 'POST',
+            body: JSON.stringify({
+              command
+            })
+          });
+
+        } catch (e) {
+          appendTerminal(`[错误] ${e.message || '命令执行失败'}`);
+          XIGEM.toast(e.message || '命令执行失败', 'error');
+
+        } finally {
+          terminalSending = false;
+
+          terminalSend.disabled = false;
+          terminalInput.disabled = false;
+
+          terminalInput.focus();
+        }
+      }
+
+      terminalForm.addEventListener('submit', e => {
+        e.preventDefault();
+
+        sendTerminalCommand(terminalInput.value);
+      });
+
+      // 点击命令帮助，填入输入框
+      document.querySelectorAll('[data-command]').forEach(button => {
+        button.addEventListener('click', () => {
+          terminalInput.value = button.dataset.command;
+          terminalInput.focus();
+        });
+      });
+
+      // ==========================================================
+      // 强制删除指定原片
+      // ==========================================================
+
+      document.getElementById('btnQuickDelete').addEventListener('click', () => {
+        XIGEM.openModal({
+          title: '强制删除原片',
+
+          content: `
+            <p class="text-muted mb-16" style="font-size:13px; line-height:1.6;">
+              输入完整的文件标识，格式为：
+              <strong>房间号_日期_序号</strong>
+              <br>
+              例如：<code>2233_20261122_0</code>
+              <br><br>
+              <span style="color:var(--color-coral);">
+                ⚠️ 此操作会删除原片及其 HLS 预览，不可恢复！
+              </span>
+            </p>
+
+            <div class="form-group">
+              <label>File ID</label>
+              <input
+                type="text"
+                id="quickDeleteInput"
+                placeholder="2233_20261122_0"
+              >
+            </div>
+          `,
+
+          confirmText: '确认删除',
+          cancelText: '取消',
+
+          onConfirm: overlay => {
+            const value = overlay.querySelector('#quickDeleteInput').value.trim();
+
+            if (!value) {
+              XIGEM.toast('请输入 File ID', 'error');
+              return false;
+            }
+
+            const match = value.match(/^([a-zA-Z0-9_-]+)_(\d{8})_(\d+)$/);
+
+            if (!match) {
+              XIGEM.toast('File ID 格式不正确', 'error');
+              return false;
+            }
+
+            const roomId = match[1];
+
+            const confirmButton = overlay.querySelector('[data-modal-confirm]');
+
+            setButtonLoading(confirmButton, true, '删除中...');
+
+            (async () => {
+              try {
+                await XIGEM.api(
+                  `/api/admin/recordings/${encodeURIComponent(roomId)}/${encodeURIComponent(value)}`,
+                  {
+                    method: 'DELETE'
+                  }
+                );
+
+                XIGEM.toast('原片已彻底删除', 'success');
+
+                overlay.remove();
+
+              } catch (e) {
+                XIGEM.toast(e.message || '删除失败', 'error');
+                setButtonLoading(confirmButton, false);
+              }
+            })();
+
+            return false;
+          }
+        });
+      });
+
+      // ==========================================================
+      // 初始化
+      // ==========================================================
+
+      async function initializeDashboard() {
+        if (dashboardSection.dataset.initialized === 'true') return;
+
+        dashboardSection.dataset.initialized = 'true';
+
+        await loadOverview();
+
+        connectTerminal();
+
+        terminalInput.focus();
+      }
+
+      // 开始检查登录状态
+      await checkAuth();
+
+      // 页面关闭时释放 SSE 连接
+      window.addEventListener('beforeunload', () => {
+        if (terminalSource) {
+          terminalSource.close();
+          terminalSource = null;
+        }
+      });
+
     });
   </script>
 </body>

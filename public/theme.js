@@ -111,7 +111,7 @@
         try {
           await fetch(BASE + 'api/logout', { method: 'POST', credentials: 'same-origin' });
         } catch (e) {}
-        window.location.href = BASE + 'login.html'; 
+        window.location.href = BASE + 'login'; 
       });
     }
 
