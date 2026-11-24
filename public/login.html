@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="/logo.png">
   
   <!-- 防闪烁：在渲染前尽早设置主题 -->
   <script>
@@ -100,7 +101,7 @@
         e.preventDefault();
 
         const username = usernameInput.value.trim();
-        const password = passwordInput.value.trim();
+        const password = passwordInput.value;
 
         if (!username || !password) {
           XIGEM.toast('请输入用户名和密码', 'error');

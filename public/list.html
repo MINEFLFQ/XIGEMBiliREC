@@ -10,6 +10,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
+  <link rel="icon" type="image/png" href="/logo.png">
+  
   <!-- 防闪烁：在渲染前尽早设置主题 -->
   <script>
     document.documentElement.setAttribute('data-theme', (function(){
@@ -366,17 +368,6 @@
         }
 
         tableBody.innerHTML = html;
-
-        if (isAdmin && isDeleteMode) {
-          document.querySelectorAll('.btn-del').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-              const roomId = e.target.getAttribute('data-room');
-              const fileId = e.target.getAttribute('data-file');
-              const fileName = e.target.getAttribute('data-name');
-              confirmDelete(roomId, fileId, fileName);
-            });
-          });
-        }
       }
 
       // 5. 渲染我的切片
@@ -451,7 +442,7 @@
 
         confirmDeleteClip(button.dataset.name);
       });
-      
+
       // 6. 格式化文件大小
       function formatSize(bytes) {
         const value = Number(bytes);
@@ -606,26 +597,51 @@
         renderRecordings();
       });
 
+      // 切换标签页
+      function switchTab(tab) {
+        currentTab = tab === 'clips' ? 'clips' : 'recordings';
+
+        tabBtns.forEach(btn => {
+          btn.classList.toggle(
+            'active',
+            btn.dataset.target === currentTab
+          );
+        });
+
+        if (currentTab === 'clips') {
+          recordingsView.classList.add('hidden');
+          clipsView.classList.remove('hidden');
+
+          loadClips();
+        } else {
+          clipsView.classList.add('hidden');
+          recordingsView.classList.remove('hidden');
+
+          loadRecordings();
+        }
+
+        const url = new URL(window.location.href);
+
+        if (currentTab === 'clips') {
+          url.searchParams.set('tab', 'clips');
+        } else {
+          url.searchParams.delete('tab');
+        }
+
+        window.history.replaceState(null, '', url);
+      }
+
       tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-          tabBtns.forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-
-          currentTab = btn.getAttribute('data-target');
-          if (currentTab === 'recordings') {
-            recordingsView.classList.remove('hidden');
-            clipsView.classList.add('hidden');
-            loadRecordings();
-          } else {
-            recordingsView.classList.add('hidden');
-            clipsView.classList.remove('hidden');
-            loadClips();
-          }
+          switchTab(btn.dataset.target);
         });
       });
 
-      // 初始化
-      loadRecordings();
+      // 根据 URL 参数初始化标签页
+      const initialTab =
+        new URLSearchParams(window.location.search).get('tab');
+
+      switchTab(initialTab);
     });
   </script>
 </body>
